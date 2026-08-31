@@ -24,6 +24,14 @@ class DeliveryContractTest < Minitest::Test
     end
   end
 
+  def test_ignores_git_worktree_metadata
+    with_output do |root|
+      File.write(File.join(root, '.git'), "gitdir: /tmp/example\n")
+      report = DeliveryContract.validate_output(inventory_path: INVENTORY, root: root, stage_name: 'proompteng')
+      assert_equal 1, report.fetch('objects')
+    end
+  end
+
   def test_rejects_namespace
     with_output(kind: 'Namespace') do |root|
       error = assert_raises(DeliveryContract::ContractError) do

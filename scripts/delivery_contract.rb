@@ -85,7 +85,7 @@ module DeliveryContract
     end
     actual_paths = Dir.glob(File.join(root_path, '**', '*'), File::FNM_DOTMATCH).select { |path| File.file?(path) }.map do |path|
       Pathname.new(path).relative_path_from(root_path).to_s
-    end.reject { |path| path.start_with?('.git/') }.sort
+    end.reject { |path| path == '.git' || path.start_with?('.git/') }.sort
     expect(actual_paths == expected_paths.sort, root, "unexpected files: expected #{expected_paths.sort.inspect}, got #{actual_paths.inspect}")
 
     provenance_path = root_path.join(spec.fetch('provenancePath')).to_s
