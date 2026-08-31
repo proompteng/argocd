@@ -1,0 +1,525 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthesis
+  namespace: synthesis
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
+  selector:
+    app: synthesis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    tailscale.com/expose: 'true'
+    tailscale.com/hostname: synthesis
+  name: synthesis-tailscale
+  namespace: synthesis
+spec:
+  loadBalancerClass: tailscale
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app: synthesis
+  type: LoadBalancer
+---
+apiVersion: agents.proompteng.ai/v1alpha1
+kind: Agent
+metadata:
+  name: synthesis-deep-alpha-agent
+  namespace: agents
+spec:
+  defaults:
+    systemPromptRef:
+      key: system-prompt.md
+      kind: ConfigMap
+      name: codex-agent-system-prompt
+  providerRef:
+    name: synthesis-deep-alpha
+  security:
+    allowedSecrets:
+    - codex-auth
+    - agents-artifacts
+    - synthesis-env
+    allowedServiceAccounts:
+    - agents-sa
+---
+apiVersion: agents.proompteng.ai/v1alpha1
+kind: AgentProvider
+metadata:
+  name: synthesis-deep-alpha
+  namespace: agents
+spec:
+  adapter:
+    codex:
+      approval: never
+      cwd: "/workspace/lab"
+      effort: high
+      model: gpt-5.6-sol
+      sandbox: danger-full-access
+      threadConfig:
+        mcp_servers:
+          synthesis:
+            args:
+            - "/root/.codex/synthesis-mcp-proxy.mjs"
+            command: node
+            env:
+              SYNTHESIS_API_TOKEN_FILE: "/var/run/synthesis/SYNTHESIS_API_TOKEN"
+              SYNTHESIS_MCP_URL: http://synthesis.synthesis.svc.cluster.local:3000/mcp
+        web_search: live
+    type: codex-app-server
+  argsTemplate: []
+  binary: "/usr/local/bin/agent-runner"
+  envTemplate:
+    AGENT_RUN_NAME: "{{agentRun.name}}"
+    AGENT_RUN_NAMESPACE: "{{agentRun.namespace}}"
+    AGENTS_ARTIFACTS_BUCKET: agents-artifacts
+    AGENTS_ARTIFACTS_ENDPOINT: http://rook-ceph-rgw-objectstore.rook-ceph.svc:80
+    AGENTS_ARTIFACTS_SECURE: 'false'
+    CODEX_CONFIG: "/root/.codex/config.toml"
+    CODEX_LOG_LEVEL: info
+    CODEX_MAX_SESSION_ATTEMPTS: '3'
+    CODEX_MODEL: gpt-5.6-sol
+    CODEX_MODEL_FALLBACKS: gpt-5.4,gpt-5.4-mini,gpt-5.2-codex,gpt-5-codex
+    HOME: "/root"
+    SYNTHESIS_API_TOKEN_FILE: "/var/run/synthesis/SYNTHESIS_API_TOKEN"
+    SYNTHESIS_MCP_URL: http://synthesis.synthesis.svc.cluster.local:3000/mcp
+  inputFiles:
+  - content: |-
+      model = "gpt-5.6-sol"
+      model_reasoning_summary = "detailed"
+      model_reasoning_effort = "high"
+      model_verbosity = "medium"
+      approval_policy = "never"
+      sandbox_mode = "danger-full-access"
+      web_search = "live"
+      suppress_unstable_features_warning = true
+
+      [features]
+      enable_request_compression = true
+      unified_exec = true
+      shell_snapshot = true
+      multi_agent = true
+      goals = true
+
+      [shell_environment_policy]
+      ignore_default_excludes = true
+
+      [projects."/workspace/lab"]
+      trust_level = "trusted"
+
+      [projects."/root"]
+      trust_level = "trusted"
+
+      [mcp_servers.synthesis]
+      command = "node"
+      args = ["/root/.codex/synthesis-mcp-proxy.mjs"]
+      env = { SYNTHESIS_API_TOKEN_FILE = "/var/run/synthesis/SYNTHESIS_API_TOKEN", SYNTHESIS_MCP_URL = "http://synthesis.synthesis.svc.cluster.local:3000/mcp" }
+    path: "/root/.codex/config.toml"
+  - content: |-
+      #!/usr/bin/env node
+
+      import { readFileSync } from 'node:fs'
+      import readline from 'node:readline'
+
+      const readFirstTokenFile = (paths) => {
+        for (const path of paths) {
+          if (!path) continue
+          try {
+            const token = readFileSync(path, 'utf8').trim()
+            if (token) return token
+          } catch {}
+        }
+        return ''
+      }
+
+      const endpoint = process.env.SYNTHESIS_MCP_URL || 'http://synthesis.synthesis.svc.cluster.local:3000/mcp'
+      const token =
+        process.env.SYNTHESIS_API_TOKEN ||
+        process.env.SYNTHESIS_MCP_TOKEN ||
+        readFirstTokenFile([process.env.SYNTHESIS_API_TOKEN_FILE, '/var/run/synthesis/SYNTHESIS_API_TOKEN'])
+
+      const buildError = (id, code, message, data) => ({
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code,
+          message,
+          ...(data == null ? {} : { data }),
+        },
+      })
+
+      const getId = (message) => {
+        if (!message || typeof message !== 'object') return null
+        const id = message.id
+        return typeof id === 'string' || typeof id === 'number' || id === null ? id : null
+      }
+
+      const writeJson = (message) => {
+        process.stdout.write(`${JSON.stringify(message)}\n`)
+      }
+
+      const forward = async (line) => {
+        if (!line.trim()) return
+
+        let message
+        try {
+          message = JSON.parse(line)
+        } catch {
+          writeJson(buildError(null, -32700, 'Parse error'))
+          return
+        }
+
+        const id = getId(message)
+        const headers = {
+          accept: 'application/json, text/event-stream',
+          'content-type': 'application/json',
+        }
+        if (token) headers.authorization = `Bearer ${token}`
+
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(message),
+          })
+          const body = await response.text()
+
+          if (!body.trim()) return
+          if (!response.ok) {
+            writeJson(buildError(id, -32000, `Synthesis MCP HTTP ${response.status}`, body.slice(0, 1000)))
+            return
+          }
+
+          for (const event of body.split(/\n\n+/)) {
+            const dataLine = event.split(/\r?\n/).find((eventLine) => eventLine.startsWith('data:'))
+            if (dataLine) {
+              process.stdout.write(`${dataLine.slice(5).trim()}\n`)
+              continue
+            }
+            process.stdout.write(`${body.trim()}\n`)
+            break
+          }
+        } catch (error) {
+          writeJson(buildError(id, -32000, 'Synthesis MCP proxy failed', error instanceof Error ? error.message : error))
+        }
+      }
+
+      const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
+      input.on('line', (line) => {
+        void forward(line)
+      })
+    path: "/root/.codex/synthesis-mcp-proxy.mjs"
+  outputArtifacts:
+  - key: synthesis/deep-alpha/{{ agentRun.name }}/report.md
+    name: synthesis-deep-alpha-report
+    path: "/workspace/.agentrun/synthesis-deep-alpha/report.md"
+  - name: runner-log
+    path: "/workspace/.agent/runner.log"
+  - name: runner-status
+    path: "/workspace/.agent/status.json"
+  secretEnv:
+  - key: SYNTHESIS_API_TOKEN
+    name: SYNTHESIS_API_TOKEN
+    secretName: synthesis-env
+  - key: AWS_ACCESS_KEY_ID
+    name: AGENTS_ARTIFACTS_ACCESS_KEY_ID
+    secretName: agents-artifacts
+  - key: AWS_SECRET_ACCESS_KEY
+    name: AGENTS_ARTIFACTS_SECRET_ACCESS_KEY
+    secretName: agents-artifacts
+---
+apiVersion: agents.proompteng.ai/v1alpha1
+kind: AgentRun
+metadata:
+  annotations:
+    agents.proompteng.ai/template: 'true'
+  name: synthesis-deep-alpha-template
+  namespace: agents
+spec:
+  agentRef:
+    name: synthesis-deep-alpha-agent
+  goal:
+    objective: Research and post Synthesis deep-alpha 2-3 week options strategy candidates
+      with technical entry timing.
+  implementationSpecRef:
+    name: synthesis-deep-alpha-options-v1
+  parameters:
+    cadence: six-hours
+    destination: synthesis
+    holdingPeriod: two-to-three-weeks
+    strategyScope: defined-risk-options
+  runtime:
+    config:
+      backoffLimit: 0
+      logRetentionSeconds: 604800
+      serviceAccountName: agents-sa
+    type: job
+  secrets:
+  - synthesis-env
+  ttlSecondsAfterFinished: 21600
+  workload:
+    resources:
+      limits:
+        ephemeral-storage: 8Gi
+        memory: 8Gi
+      requests:
+        cpu: '1'
+        ephemeral-storage: 4Gi
+        memory: 2Gi
+    volumes:
+    - mountPath: "/var/run/synthesis"
+      name: synthesis-env
+      readOnly: true
+      secretName: synthesis-env
+      type: secret
+---
+apiVersion: agents.proompteng.ai/v1alpha1
+kind: ImplementationSpec
+metadata:
+  name: synthesis-deep-alpha-options-v1
+  namespace: agents
+spec:
+  acceptanceCriteria:
+  - Start a Synthesis MCP run before research submission.
+  - Submit at least three strict Synthesis items through synthesis_submit_batch.
+  - Each item includes sourcePosts, factChecks, dedupeKey, score, confidence, and
+    topicTags.
+  - Each strategy states a 2-3 week intended hold window, entry timing, invalidation,
+    and risk.
+  - The run places no trades and uses no broker or order-entry tools.
+  labels:
+  - synthesis
+  - deep-alpha
+  - options
+  - technical-analysis
+  source:
+    externalId: synthesis-deep-alpha-options-v1
+    provider: custom
+  summary: Scheduled deep-alpha options research for Synthesis
+  text: |-
+    You are the scheduled Synthesis deep-alpha options research agent.
+
+    Objective:
+    - Every run must research current high-liquidity US equity or ETF option opportunities for a 2-3 week hold.
+    - Produce short-term strategy candidates with technical-analysis entry timing, catalyst context, risk/invalidation, and confidence.
+    - Post the output to Synthesis through the Synthesis MCP server.
+
+    Hard safety rules:
+    - This is research content only, not personalized financial advice.
+    - Do not place trades, route orders, call broker/order-entry tools, or suggest account-specific sizing.
+    - Do not ask for secrets.
+    - Do not edit repository files.
+    - If live option-chain/liquidity data is not directly verifiable, mark that limitation clearly in the submitted item and reduce confidence.
+
+    Required workflow:
+    1. Use Synthesis MCP `synthesis_start_run` with:
+       - source: `scheduled-agentrun:synthesis-deep-alpha-options`
+       - interests: `["deep-alpha","options","technical-analysis","equities","2-3-week-hold"]`
+       - notes: current UTC timestamp, market session context, and that this is a scheduled run.
+    2. Gather current market evidence with live web search and any available market-data tools.
+       Keep the research pass bounded: use no more than 12 source URLs total and keep only evidence needed for submission.
+    3. Select 3 to 4 candidates. Prefer liquid large-cap equities or ETFs. Avoid obscure tickers.
+    4. For each candidate, require:
+       - ticker or theme
+       - directional thesis
+       - catalyst or market regime reason
+       - technical setup using price trend, support/resistance, moving averages, volume, relative strength, or momentum
+       - concrete entry timing trigger such as reclaim, pullback, breakout retest, close above/below level, or failed breakdown
+       - option structure type such as debit spread, call spread, put spread, calendar, or defined-risk long premium
+       - intended hold time of 2-3 weeks
+       - invalidation level and risk notes
+       - source URLs and concise observed evidence
+    5. Submit all items with Synthesis MCP `synthesis_submit_batch`.
+    6. Write `/workspace/.agentrun/synthesis-deep-alpha/report.md` containing run id, submitted item titles, dedupe keys, sources used, and any data gaps.
+
+    Strict Synthesis item schema:
+    - `title`: max 180 characters.
+    - `synthesis`: concise human synthesis, max 3000 characters.
+    - `takeaways`: 3 to 6 bullets, each max 220 characters.
+    - `whyValuable`: why this is worth tracking now, max 1200 characters.
+    - `sourcePosts`: at least one object with `originalUrl` and `observedText`; use source URLs even when the source is not X.
+    - `factChecks`: use statuses `verified`, `unclear`, `refuted`, or `rumor`.
+    - `dedupeKey`: use the format `deep-alpha-options:2026052612:nvda`, replacing the timestamp and ticker/theme for the current run.
+    - `topicTags`: include `deep-alpha`, `options`, `technical-analysis`, `2-3-week-hold`, and lowercase ticker/theme tags.
+    - `score`: 0 to 1, based on evidence quality, setup clarity, liquidity, and immediacy.
+    - `confidence`: 0 to 1, reduced for unverifiable option-chain data or mixed technicals.
+
+    Submission quality bar:
+    - Do not submit generic market commentary.
+    - Prefer two independent sources per item. If only one source is available, confidence must be no higher than 0.45 and the missing evidence must be stated.
+    - Do not submit naked high-risk options as the preferred structure; prefer defined-risk strategies.
+    - Do not finish until `synthesis_submit_batch` returns success.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthesis
+  namespace: synthesis
+spec:
+  selector:
+    matchLabels:
+      app: synthesis
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: synthesis
+    spec:
+      containers:
+      - env:
+        - name: NODE_ENV
+          value: production
+        - name: PORT
+          value: '3000'
+        - name: HOSTNAME
+          value: 0.0.0.0
+        - name: NITRO_PORT
+          value: '3000'
+        - name: SYNTHESIS_STORAGE
+          value: postgres
+        - name: SYNTHESIS_EMBEDDING_BASE_URL
+          value: http://saigak.saigak.svc.cluster.local:11434/v1
+        - name: SYNTHESIS_EMBEDDING_MODEL
+          value: qwen3-embedding-saigak:8b
+        - name: SYNTHESIS_EMBEDDING_DIMENSION
+          value: '4096'
+        - name: SYNTHESIS_EMBEDDING_BACKFILL_LIMIT
+          value: '1000'
+        - name: SYNTHESIS_ASSET_STORAGE_REQUIRED
+          value: 'true'
+        - name: SYNTHESIS_ASSET_ENDPOINT
+          value: http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80
+        - name: SYNTHESIS_ASSET_BUCKET
+          value: synthesis-assets
+        - name: SYNTHESIS_ASSET_REGION
+          value: us-east-1
+        - name: SYNTHESIS_ASSET_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: AWS_ACCESS_KEY_ID
+              name: synthesis-assets
+        - name: SYNTHESIS_ASSET_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: AWS_SECRET_ACCESS_KEY
+              name: synthesis-assets
+        - name: SYNTHESIS_ASSET_MAX_BYTES
+          value: '8388608'
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: synthesis-db-app
+        envFrom:
+        - secretRef:
+            name: synthesis-env
+        image: registry.ide-newton.ts.net/lab/synthesis@sha256:1b460a02861cd1e07e9749deac4e787a376be07259e8236e848f6eb98c1e0f6b
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: "/api/feed"
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        name: synthesis
+        ports:
+        - containerPort: 3000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: "/api/feed"
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: '1'
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+      nodeSelector:
+        kubernetes.io/arch: arm64
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: 
+  name: synthesis-env
+  namespace: synthesis
+spec:
+  encryptedData:
+    SYNTHESIS_API_TOKEN: AgC1nvrpeS36OQ1zak920WTWaik8lXiAY6o/C9gNdXW5qvoGxFXi12GdKiAw8CYVSieXQ1id79DtGwJGTL7fg1Is2V9BgBSu+UaR1CR+Rc0WsF6BtzV6Y0vjJMYL7pgR8uXhmjt09g8YaHw+exXRJxOswpEHJ4y3OKkLL0mpYXueg42fRSWZgfo3GzCCu4H/ZJajuZBKNiJ20yGKCKeqpJJEXiSQ/wtntTOI8x5ootWc4xvz2kpTqTDUyxlAP0wkTkCgC+bCcl/mxpx+ABPb+G5mVsWCKVSSV+R/ZH6A9w3Z89EPYWiXjuiLCjsG7/ci03Onmv+k5UDtWORJJgncVFDqATDEMDt0pedqAGVxLpw5Nt+WDt70nxKKUF9q8Wd+Bj+in2XP/Pmeo1LUg1tzaQVL8oT8LifahWVDYpIC2nFnEMTKHr8nKoi2Ji+v6xEGFhszc5mTZsNkioByVgUk/A/gruq/FMxC6Wh1Z88XiA5qFNYlikLjQtreOFDSlpm2MDhsdpSZJTb4suCbp5HCX5kGA966YhsHitAwOzYLloMX4hYBbmoGvot5ui/t6HHBJMkd5ie479N2+fngaluP5okZ/nxL0oCCAtqL+XsCaPNbvsSCYW9KzXC2vY4t6AlqUGSuClxhBzaTIyrCbLIND7UknJbH9l4jv0C7Ugpw/AR0mUdwhVGsH1NQsaAjMrobLESzeclABOCpAS/LQCjlAGCiZR5EpErkrxDsJ6rEVPvkh7GNcUeiVV0MqB0d1yzcDbIR/lXLkMoSodd9uayo4QVv
+  template:
+    metadata:
+      annotations:
+        reflector.v1.k8s.emberstack.com/reflection-allowed: 'true'
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: agents
+        reflector.v1.k8s.emberstack.com/reflection-auto-enabled: 'true'
+        reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: agents
+      creationTimestamp: 
+      name: synthesis-env
+      namespace: synthesis
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: synthesis-ingress
+  namespace: synthesis
+spec:
+  ingress:
+  - ports:
+    - port: http
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: synthesis
+  policyTypes:
+  - Ingress
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: synthesis-assets
+  namespace: synthesis
+spec:
+  bucketName: synthesis-assets
+  storageClassName: rook-ceph-bucket
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: synthesis-db
+  namespace: synthesis
+spec:
+  bootstrap:
+    initdb:
+      dataChecksums: true
+      database: synthesis
+      encoding: UTF8
+      owner: synthesis
+  inheritedMetadata:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: pgadmin
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: pgadmin
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 5Gi
+    storageClass: rook-ceph-block

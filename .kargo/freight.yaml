@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: synthesis
+applications:
+- synthesis
+freight:
+  collectionID: 200168e7d6af188994b4f8a909853589846d1081
+  items:
+  - origin:
+      kind: Warehouse
+      name: synthesis
+    name: 9e00814c7b55f21e9b2c670ab589a21de9847477
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/synthesis
+      digest: sha256:1b460a02861cd1e07e9749deac4e787a376be07259e8236e848f6eb98c1e0f6b
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
