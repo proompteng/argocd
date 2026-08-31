@@ -1,0 +1,25 @@
+---
+schemaVersion: 1
+stage: jangar
+applications:
+- jangar
+freight:
+  collectionID: 6d0bee326dbb802bdb3a41cec5d425f0f5286e87
+  items:
+  - origin:
+      kind: Warehouse
+      name: jangar
+    name: 1936b01c909fd45712e70dfa1a700ca45d9ba299
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/jangar
+      digest: sha256:31fb95677f6fec08998d6c40a2db01e893ec19623193539af2f0b212b0adfd43
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054701
+      annotations:
+        ai.proompteng.github-actions-build-conclusion: success
+        ai.proompteng.github-actions-run-id: '33299054701'
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab

@@ -1,0 +1,1461 @@
+---
+apiVersion: v1
+data:
+  config.river: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    otelcol.receiver.otlp "codex" {
+      grpc {
+        endpoint = "0.0.0.0:4317"
+      }
+
+      http {
+        endpoint = "0.0.0.0:4318"
+      }
+
+      output {
+        logs    = [otelcol.processor.batch.default.input]
+        metrics = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      output {
+        logs    = [otelcol.exporter.loki.codex.input]
+        metrics = [otelcol.exporter.otlphttp.mimir.input]
+      }
+    }
+
+    otelcol.exporter.loki "codex" {
+      forward_to = [loki.write.default.receiver]
+    }
+
+    otelcol.exporter.otlphttp "mimir" {
+      client {
+        endpoint = "http://observability-mimir-gateway.observability.svc.cluster.local/otlp"
+      }
+
+      sending_queue {
+        queue_size = 2048
+      }
+
+      retry_on_failure {
+        initial_interval = "5s"
+        max_interval = "30s"
+        max_elapsed_time = "5m"
+      }
+    }
+
+    // Jangar web app
+    discovery.kubernetes "jangar" {
+      role = "pod"
+
+      namespaces {
+        names = ["jangar"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app=jangar"
+      }
+    }
+
+    loki.source.kubernetes "jangar" {
+      targets    = discovery.kubernetes.jangar.targets
+      forward_to = [loki.process.jangar.receiver]
+    }
+
+    loki.process "jangar" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "jangar",
+          job = "jangar",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // Jangar Open WebUI Helm release
+    discovery.kubernetes "jangar_openwebui" {
+      role = "pod"
+
+      namespaces {
+        names = ["jangar"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/instance=jangar-openwebui"
+      }
+    }
+
+    loki.source.kubernetes "jangar_openwebui" {
+      targets    = discovery.kubernetes.jangar_openwebui.targets
+      forward_to = [loki.process.jangar_openwebui.receiver]
+    }
+
+    loki.process "jangar_openwebui" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "jangar-openwebui",
+          job = "jangar-openwebui",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // Bumba worker
+    discovery.kubernetes "bumba" {
+      role = "pod"
+
+      namespaces {
+        names = ["jangar"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/name=bumba"
+      }
+    }
+
+    loki.source.kubernetes "bumba" {
+      targets    = discovery.kubernetes.bumba.targets
+      forward_to = [loki.process.bumba.receiver]
+    }
+
+    loki.process "bumba" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "bumba",
+          job = "bumba",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // Symphony self-hosting lane
+    discovery.kubernetes "symphony" {
+      role = "pod"
+
+      namespaces {
+        names = ["jangar"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/name=symphony"
+      }
+    }
+
+    loki.source.kubernetes "symphony" {
+      targets    = discovery.kubernetes.symphony.targets
+      forward_to = [loki.process.symphony.receiver]
+    }
+
+    loki.process "symphony" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "symphony",
+          job = "symphony",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // Symphony Jangar lane
+    discovery.kubernetes "symphony_jangar" {
+      role = "pod"
+
+      namespaces {
+        names = ["jangar"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/name=symphony-jangar"
+      }
+    }
+
+    loki.source.kubernetes "symphony_jangar" {
+      targets    = discovery.kubernetes.symphony_jangar.targets
+      forward_to = [loki.process.symphony_jangar.receiver]
+    }
+
+    loki.process "symphony_jangar" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "symphony-jangar",
+          job = "symphony-jangar",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://observability-loki-loki-distributed-gateway.observability.svc.cluster.local/loki/api/v1/push"
+      }
+    }
+kind: ConfigMap
+metadata:
+  name: jangar-alloy
+  namespace: jangar
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-requests
+  namespace: jangar
+spec:
+  limits:
+  - defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/name: jangar
+    app.kubernetes.io/part-of: lab
+  name: jangar-workspace
+  namespace: jangar
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: rook-ceph-block
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+  name: open-webui
+  namespace: jangar
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: rook-ceph-block
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: torghut/torghut-db-ca
+  name: torghut-db-ca
+  namespace: jangar
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: jangar
+    app.kubernetes.io/name: jangar
+    app.kubernetes.io/part-of: lab
+  name: jangar
+  namespace: jangar
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: jangar
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jangar-alloy
+  namespace: jangar
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: http-metrics
+    port: 12345
+    targetPort: 12345
+  selector:
+    app.kubernetes.io/name: jangar-alloy
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+    tailscale.com/hostname: jangar
+  name: jangar-tailscale
+  namespace: jangar
+spec:
+  loadBalancerClass: tailscale
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: jangar
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+    tailscale.com/hostname: jangar-vscode
+  name: jangar-vscode-tailscale
+  namespace: jangar
+spec:
+  loadBalancerClass: tailscale
+  ports:
+  - name: vscode
+    port: 80
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    app: jangar
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/version: 0.11.0
+    helm.sh/chart: open-webui-16.0.0
+  name: open-webui
+  namespace: jangar
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+    tailscale.com/hostname: openwebui
+  name: openwebui-tailscale
+  namespace: jangar
+spec:
+  loadBalancerClass: tailscale
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jangar-alloy
+  namespace: jangar
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jangar-inspector
+  namespace: jangar
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/version: 0.11.0
+    helm.sh/chart: open-webui-16.0.0
+  name: open-webui
+  namespace: jangar
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+    deploy.knative.dev/rollout: '2026-08-27T21:26:59Z'
+  labels:
+    app: jangar
+    app.kubernetes.io/name: jangar
+    app.kubernetes.io/part-of: lab
+  name: jangar
+  namespace: jangar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jangar
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: jangar
+        app.kubernetes.io/name: jangar
+        app.kubernetes.io/part-of: lab
+    spec:
+      containers:
+      - env:
+        - name: NODE_ENV
+          value: production
+        - name: UI_PORT
+          value: '8080'
+        - name: JANGAR_SOURCE_HEAD_SHA
+          value: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        - name: JANGAR_GITOPS_REVISION
+          value: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        - name: JANGAR_HTTP_IDLE_TIMEOUT_SECONDS
+          value: '120'
+        - name: JANGAR_CONTROL_PLANE_STATUS_CACHE_TTL_MS
+          value: '10000'
+        - name: JANGAR_CONTROL_PLANE_STATUS_CACHE_MAX_ENTRIES
+          value: '32'
+        - name: JANGAR_BUMBA_TASK_QUEUE
+          value: jangar
+        - name: AGENTS_SERVICE_BASE_URL
+          value: http://agents.agents.svc.cluster.local
+        - name: TEMPORAL_OTEL_ENABLED
+          value: 'true'
+        - name: TEMPORAL_METRICS_EXPORTER
+          value: otlp
+        - name: TEMPORAL_METRICS_ENDPOINT
+          value: http://observability-mimir-gateway.observability.svc.cluster.local/otlp/v1/metrics
+        - name: OTEL_SERVICE_NAME
+          value: jangar
+        - name: OTEL_SERVICE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OTEL_SERVICE_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+          value: http://observability-tempo-gateway.observability.svc.cluster.local:4317
+        - name: OTEL_EXPORTER_OTLP_TRACES_TIMEOUT
+          value: '20000'
+        - name: OTEL_METRICS_EXPORTER
+          value: otlp
+        - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+          value: http://jangar-alloy.jangar.svc.cluster.local:4317
+        - name: OTEL_EXPORTER_OTLP_METRICS_TIMEOUT
+          value: '20000'
+        - name: OTEL_LOGS_EXPORTER
+          value: none
+        - name: BUN_INSTALL_CACHE_DIR
+          value: "/workspace/.bun-install-cache"
+        - name: CODEX_REPO_SLUG
+          value: proompteng/lab
+        - name: CODEX_REPO_URL
+          value: https://github.com/proompteng/lab.git
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+              optional: true
+        - name: JANGAR_WHITEPAPER_OUTPUT_FETCH_ATTEMPTS
+          value: '12'
+        - name: JANGAR_WHITEPAPER_OUTPUT_FETCH_DELAY_MS
+          value: '5000'
+        - name: JANGAR_MODELS
+          value: qwen36-flamingo
+        - name: JANGAR_DEFAULT_MODEL
+          value: qwen36-flamingo
+        - name: JANGAR_GIT_LOCK_RETRY_ATTEMPTS
+          value: '6'
+        - name: JANGAR_GIT_LOCK_RETRY_DELAY_MS
+          value: '1000'
+        - name: JANGAR_GIT_PR_LOCK_STALE_MS
+          value: '5000'
+        - name: JANGAR_GITHUB_MIN_REQUEST_SPACING_MS
+          value: '1000'
+        - name: JANGAR_GITHUB_REPOS_ALLOWED
+          value: proompteng/lab
+        - name: JANGAR_GITHUB_REVIEWS_WRITE
+          value: 'false'
+        - name: JANGAR_GITHUB_MERGE_WRITE
+          value: 'false'
+        - name: JANGAR_GITHUB_MERGE_FORCE
+          value: 'false'
+        - name: JANGAR_CI_MAX_WAIT_MS
+          value: '3600000'
+        - name: JANGAR_REVIEW_MAX_WAIT_MS
+          value: '3600000'
+        - name: MINIO_ENDPOINT
+          value: http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: accesskey
+              name: rook-ceph-rgw-jangar
+              optional: true
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secretkey
+              name: rook-ceph-rgw-jangar
+              optional: true
+        - name: MINIO_SECURE
+          value: 'false'
+        - name: AGENTS_SYSTEM_IMPROVEMENT_ORCHESTRATION
+          value: codex-system-improvement
+        - name: AGENTS_SYSTEM_IMPROVEMENT_ORCHESTRATION_NAMESPACE
+          value: agents
+        - name: DISCORD_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: bot-token
+              name: discord-codex-bot
+              optional: true
+        - name: DISCORD_SUCCESS_CHANNEL_ID
+          valueFrom:
+            secretKeyRef:
+              key: channel-id
+              name: discord-success-channel
+              optional: true
+        - name: CODEX_BOOTSTRAP_REPO
+          value: '1'
+        - name: CODEX_INTERNAL_ORIGINATOR_OVERRIDE
+          value: codex
+        - name: JANGAR_STATEFUL_CHAT_MODE
+          value: '1'
+        - name: JANGAR_REDIS_URL
+          value: redis://jangar-openwebui-redis:6379/1
+        - name: NATS_URL
+          value: nats://nats.nats.svc.cluster.local:4222
+        - name: NATS_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: nats-jangar-credentials
+              optional: true
+        - name: NATS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: nats-jangar-credentials
+              optional: true
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: jangar-db-app
+        - name: TORGHUT_DB_DSN
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: torghut-db-app
+              optional: true
+        - name: TORGHUT_DB_SSLMODE
+          value: verify-ca
+        - name: TORGHUT_DB_CA_CERT
+          value: "/etc/ssl/certs/torghut-db/ca.crt"
+        - name: PGSSLMODE
+          value: require
+        - name: JANGAR_DB_CA_CERT
+          value: "/etc/ssl/certs/jangar-db/ca.crt"
+        - name: JANGAR_TORGHUT_QUANT_CONTROL_PLANE_ENABLED
+          value: 'true'
+        - name: JANGAR_TORGHUT_QUANT_CONTROL_PLANE_ENABLED_FLAG_KEY
+          value: jangar.torghut.quant_control_plane.enabled
+        - name: JANGAR_TORGHUT_QUANT_COMPUTE_INTERVAL_MS
+          value: '1000'
+        - name: JANGAR_TORGHUT_QUANT_HEAVY_COMPUTE_INTERVAL_MS
+          value: '30000'
+        - name: JANGAR_TORGHUT_QUANT_LATEST_SAMPLING_MS
+          value: '10000'
+        - name: JANGAR_TORGHUT_QUANT_HEALTH_SAMPLING_MS
+          value: '5000'
+        - name: JANGAR_TORGHUT_QUANT_STREAM_HEARTBEAT_MS
+          value: '15000'
+        - name: JANGAR_TORGHUT_QUANT_MAX_STALENESS_SECONDS
+          value: '15'
+        - name: JANGAR_TORGHUT_QUANT_ALERTS_ENABLED
+          value: 'true'
+        - name: JANGAR_TORGHUT_QUANT_ALERTS_ENABLED_FLAG_KEY
+          value: jangar.torghut.quant_alerts.enabled
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MAX_DRAWDOWN_1D
+          value: '0.05'
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MIN_SHARPE_5D
+          value: '0'
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MAX_SLIPPAGE_BPS_15M
+          value: '50'
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MAX_REJECT_RATE_15M
+          value: '0.02'
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MAX_PIPELINE_LAG_SECONDS
+          value: '15'
+        - name: JANGAR_TORGHUT_QUANT_POLICY_MAX_TA_FRESHNESS_SECONDS
+          value: '120'
+        - name: JANGAR_TORGHUT_QUANT_HEALTH_MISSING_UPDATE_SECONDS
+          value: '15'
+        - name: JANGAR_FEATURE_FLAGS_URL
+          value: http://feature-flags.feature-flags.svc.cluster.local:8013
+        - name: JANGAR_FEATURE_FLAGS_TIMEOUT_MS
+          value: '500'
+        - name: JANGAR_MARKET_CONTEXT_ENABLED
+          value: 'true'
+        - name: JANGAR_MARKET_CONTEXT_ENABLED_FLAG_KEY
+          value: jangar_market_context_enabled
+        - name: JANGAR_MARKET_CONTEXT_CACHE_SECONDS
+          value: '60'
+        - name: JANGAR_MARKET_CONTEXT_MAX_STALENESS_SECONDS
+          value: '300'
+        - name: JANGAR_MARKET_CONTEXT_PROVIDER_CHAIN
+          value: codex-spark,codex
+        - name: JANGAR_MARKET_CONTEXT_PROVIDER_FAILURE_THRESHOLD
+          value: '3'
+        - name: JANGAR_MARKET_CONTEXT_PROVIDER_COOLDOWN_SECONDS
+          value: '900'
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_ENABLED
+          value: 'false'
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_COOLDOWN_SECONDS
+          value: '900'
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_ACTIVE_RUN_SECONDS
+          value: '3600'
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_NAMESPACE
+          value: agents
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_SERVICE_ACCOUNT_NAME
+          value: agents-sa
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_CALLBACK_URL
+          value: http://jangar.jangar.svc.cluster.local/api/torghut/market-context
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_TTL_SECONDS
+          value: '7200'
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_REPOSITORY
+          value: proompteng/lab
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_BASE_BRANCH
+          value: main
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_HEAD_BRANCH
+          value: main
+        - name: JANGAR_MARKET_CONTEXT_ON_DEMAND_DISPATCH_VCS_REF_NAME
+          value: github
+        - name: JANGAR_MARKET_CONTEXT_REQUIRE_TECHNICALS_SOURCE_HEALTH
+          value: 'true'
+        - name: JANGAR_MARKET_CONTEXT_TECHNICALS_MAX_FRESHNESS_SECONDS
+          value: '300'
+        - name: JANGAR_MARKET_CONTEXT_REGIME_MAX_FRESHNESS_SECONDS
+          value: '300'
+        - name: JANGAR_MARKET_CONTEXT_BATCH_REQUIRE_OPEN_SESSION
+          value: 'true'
+        - name: JANGAR_MARKET_CONTEXT_BATCH_TRADING_STATUS_URL
+          value: http://torghut.torghut.svc.cluster.local/trading/status
+        - name: JANGAR_MARKET_CONTEXT_BATCH_TRADING_STATUS_TIMEOUT_MS
+          value: '5000'
+        - name: JANGAR_MARKET_CONTEXT_INGEST_ALLOW_SERVICE_ACCOUNT_TOKEN
+          value: 'true'
+        - name: JANGAR_MARKET_CONTEXT_INGEST_ALLOWED_SERVICE_ACCOUNT_PREFIXES
+          value: system:serviceaccount:agents:agents-sa
+        - name: JANGAR_TORGHUT_DECISION_ENGINE_ENABLED
+          value: 'true'
+        - name: JANGAR_TORGHUT_DECISION_ENGINE_ENABLED_FLAG_KEY
+          value: jangar_torghut_decision_engine_enabled
+        - name: JANGAR_TORGHUT_DECISION_RUN_TIMEOUT_MS
+          value: '120000'
+        - name: JANGAR_TORGHUT_DECISION_STREAM_HEARTBEAT_MS
+          value: '10000'
+        - name: JANGAR_TORGHUT_DECISION_RUN_RETENTION_MS
+          value: '900000'
+        - name: CH_HOST
+          value: torghut-clickhouse.torghut.svc
+        - name: CH_PORT
+          value: '8123'
+        - name: CH_DATABASE
+          value: torghut
+        - name: CH_SECURE
+          value: 'false'
+        - name: CH_USER
+          value: torghut
+        - name: CH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: torghut_password
+              name: torghut-clickhouse-auth
+        - name: VSCODE_DATA_DIR
+          value: "/workspace/.ovscode"
+        - name: VSCODE_DEFAULT_FOLDER
+          value: "/workspace/lab"
+        - name: DOCKER_HOST
+          value: unix:///var/run/docker.sock
+        - name: DOCKER_TLS_VERIFY
+          value: ''
+        - name: DOCKER_ENABLED
+          value: '1'
+        - name: OPENAI_API_BASE_URL
+          value: http://flamingo.flamingo.svc.cluster.local/v1
+        - name: OPENAI_EMBEDDING_API_BASE_URL
+          value: http://saigak.saigak.svc.cluster.local:11434/v1
+        - name: OPENAI_EMBEDDING_MODEL
+          value: qwen3-embedding-saigak:8b
+        - name: OPENAI_EMBEDDING_DIMENSION
+          value: '4096'
+        - name: OPENAI_EMBEDDING_TIMEOUT_MS
+          value: '60000'
+        - name: ATLAS_CODE_SEARCH_EMBEDDING_MODEL
+          value: qwen3-embedding-saigak:8b
+        - name: ATLAS_CODE_SEARCH_EMBEDDING_DIMENSION
+          value: '1024'
+        - name: ATLAS_CODE_SEARCH_STATEMENT_TIMEOUT_MS
+          value: '5000'
+        - name: JANGAR_SOURCE_CI_RUN_ID
+          value: '33299054701'
+        - name: JANGAR_SOURCE_CI_CONCLUSION
+          value: success
+        - name: JANGAR_MANIFEST_IMAGE_DIGEST
+          value: sha256:31fb95677f6fec08998d6c40a2db01e893ec19623193539af2f0b212b0adfd43
+        - name: JANGAR_SERVING_BUILD_COMMIT
+          value: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        - name: JANGAR_SERVING_IMAGE_DIGEST
+          value: sha256:31fb95677f6fec08998d6c40a2db01e893ec19623193539af2f0b212b0adfd43
+        image: registry.ide-newton.ts.net/lab/jangar:kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054701@sha256:31fb95677f6fec08998d6c40a2db01e893ec19623193539af2f0b212b0adfd43
+        imagePullPolicy: IfNotPresent
+        name: app
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: vscode
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: "/health"
+            port: 8080
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: '2'
+            memory: 6Gi
+          requests:
+            cpu: '2'
+            memory: 6Gi
+        volumeMounts:
+        - mountPath: "/workspace"
+          name: workspace
+        - mountPath: "/var/lib/docker"
+          name: docker-lib
+          readOnly: true
+        - mountPath: "/var/run"
+          name: docker-sock
+        - mountPath: "/etc/ssl/certs/jangar-db"
+          name: jangar-db-ca
+          readOnly: true
+        - mountPath: "/etc/ssl/certs/torghut-db"
+          name: torghut-db-ca
+          readOnly: true
+        - mountPath: "/root/.codex/auth.json"
+          name: codex-auth
+          readOnly: true
+          subPath: auth.json
+      - args:
+        - "--host=unix:///var/run/docker.sock"
+        command:
+        - dockerd-entrypoint.sh
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ''
+        - name: XDG_RUNTIME_DIR
+          value: "/tmp/docker-runtime"
+        image: docker:25.0-dind
+        imagePullPolicy: IfNotPresent
+        name: docker
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: "/var/lib/docker"
+          name: docker-lib
+        - mountPath: "/var/run"
+          name: docker-sock
+      initContainers:
+      - args:
+        - |
+          set -eu
+          if [ ! -d /workspace/lab/.git ]; then
+
+            rm -rf /workspace/lab
+            git clone --depth 1 https://github.com/proompteng/lab.git /workspace/lab
+          fi
+          mkdir -p /workspace/lab/.worktrees /workspace/lab/torghut /workspace/.bun-install-cache /workspace/.ovscode
+        command:
+        - sh
+        - "-c"
+        image: registry.ide-newton.ts.net/lab/jangar:kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054701@sha256:31fb95677f6fec08998d6c40a2db01e893ec19623193539af2f0b212b0adfd43
+        imagePullPolicy: IfNotPresent
+        name: bootstrap-workspace
+        volumeMounts:
+        - mountPath: "/workspace"
+          name: workspace
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      serviceAccountName: jangar-inspector
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: jangar-workspace
+      - emptyDir: {}
+        name: docker-lib
+      - emptyDir: {}
+        name: docker-sock
+      - name: jangar-db-ca
+        secret:
+          secretName: jangar-db-ca
+      - name: torghut-db-ca
+        secret:
+          optional: true
+          secretName: torghut-db-ca
+      - name: codex-auth
+        secret:
+          secretName: codex-auth
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/name: jangar-alloy
+  name: jangar-alloy
+  namespace: jangar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jangar-alloy
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-03-19T06:31:00Z'
+      labels:
+        app.kubernetes.io/component: logging
+        app.kubernetes.io/name: jangar-alloy
+    spec:
+      containers:
+      - args:
+        - run
+        - "/etc/alloy/config.river"
+        image: grafana/alloy:v1.18.1
+        imagePullPolicy: IfNotPresent
+        name: alloy
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 12345
+          name: http-metrics
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: false
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: "/etc/alloy"
+          name: config
+      serviceAccountName: jangar-alloy
+      volumes:
+      - configMap:
+          items:
+          - key: config.river
+            path: config.river
+          name: jangar-alloy
+        name: config
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: open-webui
+    app.kubernetes.io/instance: jangar-openwebui
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: open-webui
+    app.kubernetes.io/version: 0.11.0
+    helm.sh/chart: open-webui-16.0.0
+  name: open-webui
+  namespace: jangar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: open-webui
+      app.kubernetes.io/instance: jangar-openwebui
+  serviceName: open-webui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: open-webui
+        app.kubernetes.io/instance: jangar-openwebui
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: open-webui
+        app.kubernetes.io/version: 0.11.0
+        helm.sh/chart: open-webui-16.0.0
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: ENABLE_OLLAMA_API
+          value: 'False'
+        - name: OPENAI_API_BASE_URL
+          value: http://flamingo.flamingo.svc.cluster.local/v1
+        - name: ENABLE_WEBSOCKET_SUPPORT
+          value: 'True'
+        - name: WEBSOCKET_MANAGER
+          value: redis
+        - name: REDIS_URL
+          value: redis://jangar-openwebui-redis:6379/0
+        - name: WEBSOCKET_REDIS_URL
+          value: redis://jangar-openwebui-redis:6379/0
+        - name: GLOBAL_LOG_LEVEL
+          value: debug
+        - name: MAIN_LOG_LEVEL
+          value: debug
+        - name: OPENAI_LOG_LEVEL
+          value: debug
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: jangar-db-app
+        - name: DATABASE_TYPE
+          value: postgresql
+        - name: PGSSLROOTCERT
+          value: "/etc/ssl/certs/jangar-db/ca.crt"
+        - name: PGSSLMODE
+          value: require
+        - name: AIOHTTP_CLIENT_SESSION_SSL
+          value: 'false'
+        - name: OPENAI_API_BASE_URLS
+          value: http://flamingo.flamingo.svc.cluster.local/v1;http://jangar.jangar.svc.cluster.local/openai/v1
+        - name: OPENAI_API_KEYS
+          value: ";"
+        - name: DEFAULT_MODELS
+          value: qwen36-flamingo
+        - name: WEBUI_AUTH
+          value: 'false'
+        - name: ENABLE_SIGNUP
+          value: 'false'
+        - name: ENABLE_FORWARD_USER_INFO_HEADERS
+          value: 'true'
+        image: ghcr.io/open-webui/open-webui:v0.11.0@sha256:72c0ba641ba75e7aa52655cb242570906ececd09b1140fb736483038a22b3228
+        imagePullPolicy: IfNotPresent
+        name: open-webui
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          limits:
+            cpu: '4'
+            memory: 8Gi
+          requests:
+            cpu: '4'
+            memory: 8Gi
+        tty: true
+        volumeMounts:
+        - mountPath: "/app/backend/data"
+          name: data
+        - mountPath: "/etc/ssl/certs/jangar-db"
+          name: jangar-db-ca
+          readOnly: true
+      enableServiceLinks: false
+      initContainers:
+      - command:
+        - sh
+        - "-c"
+        - cp -R -n /app/backend/data/* /tmp/app-data/
+        image: ghcr.io/open-webui/open-webui:v0.11.0@sha256:72c0ba641ba75e7aa52655cb242570906ececd09b1140fb736483038a22b3228
+        imagePullPolicy: IfNotPresent
+        name: copy-app-data
+        volumeMounts:
+        - mountPath: "/tmp/app-data"
+          name: data
+      serviceAccountName: open-webui
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: open-webui
+      - name: jangar-db-ca
+        secret:
+          secretName: jangar-db-ca
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+  name: discord-codex-bot
+  namespace: jangar
+spec:
+  encryptedData:
+    bot-token: AgCWDl+vTjfAFZL4XFYfYnwq1Rs7k/hjeJyI/fZaAneYPdinza++0nHITssHYk7XplUnuWzgMQq+UpL6FcQlKkRdWA9w+mXk2beYjl1Qb2heo6KVIU/eO5j8AlwykrIE1dxldkLGEcfRPpGiW9gHI/MwI1NvqZ9+oT3Y84Ifp6mGHIHq122N8lWgwikx8lSFNwm20//9do2CV8/ycW/MCD503HHhlbih1bpPRzSyJ7oo3varS/hKq5rGzsvj2upiEdB8217gZtTwygR5X1RFM97ZdZ8x8rRdaYfuSPVyX4xNh6mbWFe95hmBKDElfaMNKm9neoRnjpYC7oHpcG7Q0VWaV2Xqb8KdDtHBoFWw+Pt4AFgTO1z51wGXLcV1BtME7igmMKBM6DfPHROcU+UATBVObAh+3ghJPsEgDMZ3yfHnApO4pVB7771OBoTxQ07uvnSbfn5ax7Ulb67JG4JVdoMEWOsyS9vzlXZgrvkincZBPN//PNPegqDhsxpdkgPVvjEeaYRxZfUXZYGIkTDnS8crmcxwK7LDjtx01Z78YeDuOx6qlLJMVYIBDxBSZSf2e8QL2KAtq3rPGqL7v84GM8zUVJ6nS6Oq2XhWk4Sc49PInWpsCO2t/C703RrIsuPgiQh1LmXh2kybfqcLgFPt8PO3KpMQJk3qgiQudLhV1F5/HYeCZI6iQAI8TMO8Wzlo7CrjsvzAYlU5o6A3gPLc4pn+v8GA7U0J8aszlqwn0pFAA3HMJR81v5eM1T2masx3YG2edl/5H7ar1flIXlp9ttopPsbnw9AAr60=
+    category-id: AgAtAGYbpGq4ckfWcHlgx/uzzs8OdP/yARiRQVNmn94iDYTOkI9D15p5tIYS3sOPJhGBUv8RnWTwJUXU4HoTYSLz8Gi5kyyQZu828lt8pzKX05NoAwa+u+tpimZAeDfWmcrxavZaYux26PY8m4eXRFVLeb0QZGq6Xfh86A9mLsZIrqs8QC8p/tFgzkwfgFclqU0FdsGnj+6hxMVIDLZCc5aAMjmUWLi9t+yTbQckwy6sg22IpogNebYrYmT75B4tKGe0+8wv6AyuzGfiNzaQaKFx2W9MmC+yyfRaHWoE3PMIFkZfyIipSETpYwVaAUtRGXiQSeZyOqOzmcvNQ2TE+DOILs2gqEiBrXUjLEtU8a9Z0U7aj07te2Z7A+65dtuR+tIOjNdJOfrhoMrQJS+5mG6ha7MsL5ZffVEpm5IGVUxbgJNb6K8ZBGVpU6OcBE2oJa+WcVgf5ndFPZP+A6jw8uVhZbjLFw8x7idFRBwN5CuX3dzX4j1E+oipd01XI3bRSpJVceBHCRhQPO+vYRxanvbVPZhbZoSbrmzWiD3fVTYi+AO5+nZW0JSOm0Tta8iDbcPJeo4f446m0Ri/Ku1+8LhC1P14C8PFEAZ3Czv8sbwdHr3rCB4yRyoGDWrwY+hD9Vo/+rUmd/KKON23/nQxGkE5mn6I4gfupIhaHEsi/wV2R4onLMoU/fRobAbi1f6jnMnJu+uBmPQhSeY2bYaRRCu4Ma1A
+    guild-id: AgB4QbD9cBs1F13G24H6PUpAfbXqqCx2v9ayu2yL/9GwfZdscZMOuK57JFidRgV2zUrJTAOhHPpKRUdjjoFTuH18Fdie7e7V6nv2dK8JDn1ptdPIWD6HCncRF+Zvr07UGcBIRpI8Syr0LsnQLpuqsNwpLCw+XMYtrWKBqAtG5IFRWI2HrYVVb+WO6+tWK8B2DzKeEz3eBKYn68gOfGa1hMRBTbVKU9Qmw50Kb4VflrHaHEJDQnZpv4ZNsOKcDHF0gOzWt/zJ9ME/HrW1hMmJQs554y+g9SzNAuUedSc3LHintL6Q64Rcn8EL58YaJgZXQfeRj/ZnLUIBfhCrEUMfiChsXyA4gXi0aiGyEl0H/6NP+M8CGUJO8WeARdCcbiPvBtbgJnOHaoWpuAYFvoNqoJcZY25A3KXfcDrlvuZhk8uU/uFSjy21W4RCx8qEnhwRkO4WpiFylJf0xyHjTdwRbc6BQO8NeUd1ITfuGvLbzhiJ7CyKKN/sWnZo9askI+cCOq8Mbl/V2YiM9NAvs6cJmrQ2wHCzgElxv8LfF4qKvmFTzfm5MZIbp1ukLV+I30ForPNN7c7TVkfNdiPBNbJOk05iWSxlZGs1u+qS/aqaRJtIyegKBufM33a6XeWPh5xZxWH5armPPt64+4lJpZWJ0jN+eDD+H19ieW4nY8R/d1QX6d0WzKLtORcxSE8rUH9nt3LuaV574eVMUuMtiX0cuRB/5e3X
+  template:
+    metadata:
+      name: discord-codex-bot
+      namespace: jangar
+    type: Opaque
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+  name: discord-success-channel
+  namespace: jangar
+spec:
+  encryptedData:
+    channel-id: AgBfxUTD4aQ7n73aPNKS65V1fSKBNiKSve1hu8zTKEFuVuE7M5ViG0TVWzPP3b4A3JZqF8I8/zzVTSJEI+fFehOSj4e9oPhE+LiuS7NGT1xpVSTOkLUvc2dHz49x/KfmPLIC8soqjjWOdTRnT2YpCmex/Vnr5JdmZ/FNaieXu3uQzbW+jqPuHlLUxMieaVMJQd7kBeIfTyk2NJGdjzf1Cc9vV8dqSjaQJd1nFfj3AsP6Y5IjLHHdW8SyBc9dHYEdqCn1AgiyeuV/4XVrCMcuXD+RNDp+fuWLGu2lLB0V/jRHsFH47G1oyGmHbspi9gnHoGaiGXX+uGRP0pT5hA7H4hz+8HQH+YA6MnKG/qqOUSvnUIsCzKlmH5i4wgJebiVO+HZfePCnY2ojV3ttqkwa5rDn4KT6GKzDRnPMAaJQEJNahh+pggv1cJpMmmpEJwMl1nH3D17VjpWmLRhU/zM72ye0mrg6H/YUWHZi4sCzHKQjY0GDTr/pAMcvO4eLqEg9erSzjaogAtzntEVcrXMGs+4zeireVbXdiSCO4HClDSXqle5FYEi7DfcU6G2EJ+wctaNicZuFqi6OvRimCtK+NSDi4/mq9iNLX37LRzdsJroeddExIac5+SEISPD2bCtAqjWyLw5sBC6stnxtMcs1gvtTAvx6LjZNGFapxG8OfifOWoGE6VtRngjNbmJK+FMjomF2vHG90XC8P4zke0TkysQ4u7Ho
+  template:
+    metadata:
+      name: discord-success-channel
+      namespace: jangar
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: 'true'
+  name: github-token
+  namespace: jangar
+spec:
+  encryptedData:
+    token: AgCmNmgNqBmNxozFdDmmMVGsFeQMTj7wBZOYtmQbYI8P5oqGkgqPlHYdKBhGKQu648/L0IjCZuEMSOhJDvjYVYOLZ63EGunMp1BHcAO+vkmLIg06WS0JTZHBWfVaK0LG2rdAkMdbTjN1sGznBShIKdxUmMclWXCV0h8a0UcnTVhOnpE/0ho0lIGzhuUf2V+eAKLIjxTIqWy4erKACsi/lxgYFTSzQqKs0yUf5DQb3qI+FXYTAotz3uXlwTIwiF8J2xF7US6Q5AbeUVYgHh0ycnILGX6ut6TP7HqZ+g0fpiEuJRXjuFEYRwItLV6/o8F26Eo6pIabz0GyKG7CyyAvhERp1NFn6jWz6SjEF8RlhR9YcRALPwVl+kEwtZLyWr5yOYVSVCs5NBIrC2YNt8SE9YffFDreozAIuu0i0tMiJeTuTpERBLbradEUjwvzF0Wg4n1tx86YtxR8u5rVygd5BgTEvPKvO9PLa+0aQwFNriZsCK/xcPQS909Y4E89StZtGz2Eky4E70Pk5Evnhzs90utYSujNrnYmTGWF2XQ4qURf2nlqQAbMg3EibBaXfFvD1w/1giSGcuhU7TZSyNs0G5mZbOGn6n4sDK9CwkG85dufJTOaLQBci8hrElfifLHqRroPKyK6BF+cxNajQaWGKFoD6mid+fjHDFSdAP5ovnUJ9B2JPqO/Hy+hL6PzJ7t4GeE4DNMaMUEKSwzd96oPpomP1uISS1L4RwY/rQqBa/i9r7o35HRaJL5/
+  template:
+    metadata:
+      annotations:
+        reflector.v1.k8s.emberstack.com/reflection-allowed: 'true'
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: agents,argo-workflows,froussard,feature-flags
+        reflector.v1.k8s.emberstack.com/reflection-auto-enabled: 'true'
+        reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: agents,argo-workflows,froussard,feature-flags
+      name: github-token
+      namespace: jangar
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: rook-ceph-rgw-jangar
+  namespace: jangar
+spec:
+  encryptedData:
+    accesskey: AgCGJ1QX6uyUsDQTIJmbCuv61jyZMyxyioqt1qIbKPHZky5k3q2p7RsrUxB1fsfqT3JwKnGefcfmE7BodoUqoZSc7fLQBTTwKNoZYhpwEcQmDd9rwhpT/TW+/l9cVEmwpmUTVQP8z9rK841VLxVO/ImnCTjrGjG7PWvOssxKq42neBPk1E/VlX5SwiZkYP68u3NhjDFoq3yayDrEtDUEBcmxk9WaLFPawyZQuUYXzhSjuTzMjz98YJqH369ZUlAj0UGNISpyOftiKUsP7ocOVjLemNdV8s/F0y1tA3Zzc1/3IWeDOwifOpSUSVL7J5GxncS1FqJS4NhI4UQ3suGDKrjS5rNwhabMoo6BmhmDplpIjs5XHk/qSJ6gQvn0GD5k9cl/LFpPFexlQ+0iljI/nKhPwu4BrlQBloT3w/rw6BchkNBd6SeVzBm9t+YmLcogzguK4YAgcDJQYmIa04bo2vePoYC4QrhjAwx3vS+8u3dl+TTDmt4otYQH2v5U4wqwaHNVNvt07S8lD0he764W83W4UD0aCMHvMUztPP0uyEpnKKmoWYkSCKHUNFEVXDvkXYl59uaWX7V8Z29cHS91E3Kpq1/DkT5Ss8+CdwllJIpjVt+0yMMb2QzeYmrHPIQ5rgJ/LHABCMtjkf7k9EObvLh7zrpdHNOoivAESJ8/w3CaHBA/qmwSw3mwMRaKRbC6ERJH83553QKQdRNKajvTWJkdfWnq+g==
+    secretkey: AgAiZzcasyl5ZUX8D3bFyCNkgRrFbo/gF4I4MlTurGOlGIH3Tc0mCPa3okJWLEvIU7tqnbg/fr33TlZllxmQ5DTXTpxov95l01Mg7s8e0foYTVwQ2fbKLTjPQdVGy2del7wwXaErlf/y6LzzSq2NGGMYl3rS8AgWmkeu/zSBgn3DdxeBE1pDrc/PvSra50wInmXZzSSyvt6X0deE+U37p07VifMAzDobvzHDbndV8CrJx0eFGKG2JBE6L1Jiu4rY7kH3udtpFqyT33wctysMglf0abl31ujw7bXWeVP0fhsXB6dm/38w3iCsrindG17hhCLgPjJ7JEsKGG+EPJWdNc0P186Serz5qF1ol8bDPqX26PWitgVVL4x3XEN0cCsgmEmiO7ef514RIwkg0he+no6DgROVvNz4pFUAfcaboS22dMJr3i1X92GlsTOTO2y732NXQewcNlQlubjJc/73DkA2Th6x8NgABK8vZyZszYj5UKQh1yi4WEhmKYBLTZ/yMGObT87v0HbTexbERgWP4yZpPOtbZSTr3WdZAupkF/MlqZIeBgLGZZyFiaKLvTh4RVq4KIaRstGwebP8UAbYHmNBgCb9EmECStJdLUFAmCqOvxamNen40EzLA4JwrNcK31/F88TpNVdKEaAgo8iWpCxddHEHVQeTCW4MU0SYdGRyFPncbbI93tlpTm6Ik03GAVjTMd4dMObMgbFdZplzXyq8ibv32SwhD5F9mvCjg0bu1J7zNHMieL3q
+  template:
+    metadata:
+      name: rook-ceph-rgw-jangar
+      namespace: jangar
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  name: codex-auth
+  namespace: jangar
+spec:
+  data:
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: codex-auth/auth.json
+      metadataPolicy: None
+      nullBytePolicy: Ignore
+    secretKey: auth.json
+  refreshInterval: 1h
+  refreshPolicy: Periodic
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-infra
+  target:
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    name: codex-auth
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: cnpg-jangar-db
+  namespace: jangar
+spec:
+  bucketName: cnpg
+  storageClassName: rook-ceph-bucket
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: jangar-db
+  namespace: jangar
+spec:
+  backup:
+    barmanObjectStore:
+      data:
+        additionalCommandArgs:
+        - "--max-bandwidth"
+        - 8MB
+        compression: snappy
+        jobs: 1
+      destinationPath: s3://cnpg
+      endpointURL: http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80
+      s3Credentials:
+        accessKeyId:
+          key: AWS_ACCESS_KEY_ID
+          name: cnpg-jangar-db
+        secretAccessKey:
+          key: AWS_SECRET_ACCESS_KEY
+          name: cnpg-jangar-db
+      serverName: jangar-db-live
+      wal:
+        compression: snappy
+        maxParallel: 2
+    retentionPolicy: 14d
+    target: prefer-standby
+  bootstrap:
+    initdb:
+      dataChecksums: true
+      database: jangar
+      encoding: UTF8
+      owner: jangar
+      postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS pgcrypto;
+      - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+      - CREATE EXTENSION IF NOT EXISTS vector;
+  inheritedMetadata:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: pgadmin
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: pgadmin
+  instances: 2
+  monitoring:
+    enablePodMonitor: true
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 300Gi
+    storageClass: rook-ceph-block
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: jangar-db-daily
+  namespace: jangar
+spec:
+  backupOwnerReference: self
+  cluster:
+    name: jangar-db
+  method: barmanObjectStore
+  schedule: 0 0 4 * * *
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jangar-alloy
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jangar-inspector
+rules:
+- apiGroups:
+  - "*"
+  resources:
+  - "*"
+  verbs:
+  - "*"
+- nonResourceURLs:
+  - "*"
+  verbs:
+  - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jangar-post-deploy-verifier-agents-proxy
+rules:
+- apiGroups:
+  - ''
+  resourceNames:
+  - agents
+  - agents:80
+  resources:
+  - services/proxy
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jangar-alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jangar-alloy
+subjects:
+- kind: ServiceAccount
+  name: jangar-alloy
+  namespace: jangar
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jangar-inspector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jangar-inspector
+subjects:
+- kind: ServiceAccount
+  name: jangar-inspector
+  namespace: jangar
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jangar-post-deploy-verifier-agents-proxy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jangar-post-deploy-verifier-agents-proxy
+subjects:
+- kind: ServiceAccount
+  name: arc-arm64-gha-rs-kube-mode
+  namespace: arc
+- kind: ServiceAccount
+  name: agents-sa
+  namespace: agents
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jangar-alloy
+  namespace: jangar
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: post-deploy-verifier
+  namespace: jangar
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - services/proxy
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jangar-alloy
+  namespace: jangar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jangar-alloy
+subjects:
+- kind: ServiceAccount
+  name: jangar-alloy
+  namespace: jangar
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: post-deploy-verifier
+  namespace: jangar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: post-deploy-verifier
+subjects:
+- kind: ServiceAccount
+  name: arc-arm64-gha-rs-kube-mode
+  namespace: arc
+- kind: ServiceAccount
+  name: agents-sa
+  namespace: agents
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: Redis
+metadata:
+  name: jangar-openwebui-redis
+  namespace: jangar
+spec:
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.0.15
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.78.0@sha256:8edf2c77220a6e8fc290d13a4ec78bedcbdf08b8bf03a64119f448131f733d3f
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+        storageClassName: rook-ceph-block
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jangar-private
+  namespace: jangar
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`jangar.k8s.proompteng.ai`)
+    services:
+    - name: jangar
+      port: 80
+  tls:
+    secretName: wildcard-k8s-proompteng-ai-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: openwebui-private
+  namespace: jangar
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`openwebui.k8s.proompteng.ai`)
+    services:
+    - name: open-webui
+      port: 80
+  tls:
+    secretName: wildcard-k8s-proompteng-ai-tls
