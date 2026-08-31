@@ -1,0 +1,24 @@
+---
+schemaVersion: 1
+stage: symphony
+applications:
+- symphony
+- symphony-jangar
+freight:
+  collectionID: 62fcca884a55665a997e4fc757c5f28568e56ce0
+  items:
+  - origin:
+      kind: Warehouse
+      name: symphony
+    name: 01c9ec672262b7f59485ce229d180048b3bd2efa
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: b503deab769a67b10cb5cb3f77063b6e88582b5d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/symphony
+      digest: sha256:c57e2b8a3a7f79c930cd6ae5b8bcddf7856fd4fae7028218aef29dea6021b418
+      tag: kargo-sha-b503deab769a67b10cb5cb3f77063b6e88582b5d
+      annotations:
+        org.opencontainers.image.revision: b503deab769a67b10cb5cb3f77063b6e88582b5d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
