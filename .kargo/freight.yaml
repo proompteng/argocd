@@ -1,0 +1,20 @@
+---
+schemaVersion: 1
+stage: analysis
+applications:
+- analysis
+freight:
+  collectionID: 7f2fb3a27ed419ce1e2c39db8bf2327789389fed
+  items:
+  - origin:
+      kind: Warehouse
+      name: analysis
+    name: 48d74188f7189ef66029a1ed66d6984bbf3f4e47
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: 91d8f42570b5d60e7ee34fcf0b30824110f4c22b
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/analysis
+      digest: sha256:89e1b908f9876673b4674a5b8ab98f95b33869520a2a17b9bab25d73a5630b2c
+      tag: latest

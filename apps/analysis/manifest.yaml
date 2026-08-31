@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analysis
+  namespace: analysis
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app: analysis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    tailscale.com/expose: 'true'
+    tailscale.com/hostname: analysis
+  name: analysis-tailscale
+  namespace: analysis
+spec:
+  loadBalancerClass: tailscale
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app: analysis
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: analysis
+  name: analysis
+  namespace: analysis
+spec:
+  selector:
+    matchLabels:
+      app: analysis
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: analysis
+    spec:
+      containers:
+      - image: registry.ide-newton.ts.net/lab/analysis@sha256:89e1b908f9876673b4674a5b8ab98f95b33869520a2a17b9bab25d73a5630b2c
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: "/"
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        name: analysis
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: "/"
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      nodeSelector:
+        kubernetes.io/arch: arm64
