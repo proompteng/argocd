@@ -6,6 +6,12 @@ Repository: <https://github.com/proompteng/argocd>
 
 Bootstrap pull request: <https://github.com/proompteng/argocd/pull/1>
 
+## Repository controls
+
+- Ruleset `21887743` protects `main` with pull requests, the required `validate` check, linear history, and deletion and force-push prevention.
+- Ruleset `21887744` protects `kargo/*` from creation, ordinary updates, deletion, and force-pushes. It has no human bypass.
+- The dedicated `proompteng-kargo-delivery` GitHub App is not registered. GitHub does not expose initial App registration through `gh` or its REST/GraphQL APIs; its manifest registration flow is web-initiated and automatically generates a private key, which this phase explicitly forbids. Consequently, generated branches remain deliberately locked until that later credential phase registers the App and adds its Integration ID as the sole ruleset bypass.
+
 ## Generated branches
 
 | Stage | Applications | Seed commit |
