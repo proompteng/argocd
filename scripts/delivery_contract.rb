@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'json'
 require 'pathname'
 require 'yaml'
 
@@ -64,12 +63,9 @@ module DeliveryContract
       expect(apps == expected, path, "stage #{name} must map to #{expected.inspect}")
     end
 
-    JSON.parse(File.read(File.join(File.dirname(path), 'freight.schema.json')))
     inventory
   rescue KeyError => error
     raise ContractError, "#{path}: missing required key #{error.key.inspect}"
-  rescue JSON::ParserError => error
-    raise ContractError, "freight.schema.json: invalid JSON: #{error.message}"
   end
 
   def validate_output(inventory_path:, root:, stage_name:)
