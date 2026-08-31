@@ -1,0 +1,679 @@
+---
+apiVersion: v1
+data:
+  auth.html: |
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta http-equiv="Cache-Control" content="no-store" />
+        <title>Completing Headlamp Sign-In</title>
+        <style>
+          :root {
+            color-scheme: dark;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          }
+
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #1f1f1f;
+            color: #f5f5f5;
+          }
+
+          main {
+            width: min(28rem, calc(100vw - 2rem));
+            padding: 2rem;
+            border: 1px solid #3f3f46;
+            border-radius: 1rem;
+            background: #27272a;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+          }
+
+          h1 {
+            margin: 0 0 0.75rem;
+            font-size: 1.5rem;
+          }
+
+          p {
+            margin: 0.75rem 0 0;
+            line-height: 1.5;
+            color: #d4d4d8;
+          }
+
+          a {
+            color: #fde047;
+          }
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>Completing sign-in…</h1>
+          <p id="status">Redirecting back to Headlamp.</p>
+          <p>
+            If nothing happens,
+            <a id="continue-link" href="/">continue to Headlamp</a>.
+          </p>
+        </main>
+        <script>
+          (() => {
+            const params = new URLSearchParams(window.location.search);
+            const cluster = params.get('cluster');
+            const status = document.getElementById('status');
+            const continueLink = document.getElementById('continue-link');
+
+            if (!cluster) {
+              status.textContent = 'Cluster information is missing. Continue to the Headlamp login page.';
+              continueLink.href = '/';
+              return;
+            }
+
+            const target = `/c/${encodeURIComponent(cluster)}`;
+            continueLink.href = target;
+
+            const markAuthSuccess = storage => {
+              storage.removeItem('auth_status');
+              storage.setItem('auth_status', 'success');
+            };
+
+            try {
+              markAuthSuccess(window.localStorage);
+            } catch (error) {
+              console.error('Failed to update local auth state', error);
+            }
+
+            let openerRedirected = false;
+
+            try {
+              if (window.opener && !window.opener.closed) {
+                markAuthSuccess(window.opener.localStorage);
+                window.opener.location.replace(target);
+                window.opener.focus();
+                openerRedirected = true;
+              }
+            } catch (error) {
+              console.error('Failed to redirect Headlamp opener', error);
+            }
+
+            status.textContent = openerRedirected
+              ? 'Sign-in complete. Returning to Headlamp.'
+              : 'Sign-in complete. Opening Headlamp.';
+
+            window.setTimeout(() => {
+              if (openerRedirected) {
+                window.close();
+              }
+
+              window.location.replace(target);
+            }, 150);
+          })();
+        </script>
+      </body>
+    </html>
+  server.py: |
+    import http.client
+    import os
+    import socket
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from pathlib import Path
+    from urllib.parse import urlparse
+
+    AUTH_HTML = Path('/app/auth.html').read_bytes()
+    HEADLAMP_UPSTREAM_HOST = os.environ.get('HEADLAMP_UPSTREAM_HOST', 'headlamp')
+    HEADLAMP_UPSTREAM_PORT = int(os.environ.get('HEADLAMP_UPSTREAM_PORT', '80'))
+    HEADLAMP_PROXY_TIMEOUT_SECONDS = float(os.environ.get('HEADLAMP_PROXY_TIMEOUT_SECONDS', '30'))
+    HOP_BY_HOP_HEADERS = {
+      'connection',
+      'keep-alive',
+      'proxy-authenticate',
+      'proxy-authorization',
+      'te',
+      'trailer',
+      'transfer-encoding',
+      'upgrade',
+    }
+
+
+    def build_body(status, text):
+      return text.encode('utf-8')
+
+
+    def send_bytes(handler, status, body, content_type='text/plain; charset=utf-8', include_body=True):
+      handler.send_response(status)
+      handler.send_header('Content-Type', content_type)
+      handler.send_header('Cache-Control', 'no-store')
+      handler.send_header('Content-Length', str(len(body)))
+      handler.end_headers()
+      if include_body and body:
+        handler.wfile.write(body)
+
+
+    def is_websocket_upgrade(headers):
+      connection = headers.get('Connection', '')
+      upgrade = headers.get('Upgrade', '')
+      return 'upgrade' in connection.lower() and upgrade.lower() == 'websocket'
+
+
+    def read_request_body(handler):
+      length = int(handler.headers.get('Content-Length', '0') or '0')
+      if length <= 0:
+        return None
+      return handler.rfile.read(length)
+
+
+    def upstream_headers(handler):
+      headers = {}
+      for name, value in handler.headers.items():
+        if name.lower() in HOP_BY_HOP_HEADERS:
+          continue
+        headers[name] = value
+      return headers
+
+
+    def proxy_http_request(handler, include_body):
+      connection = http.client.HTTPConnection(
+        HEADLAMP_UPSTREAM_HOST,
+        HEADLAMP_UPSTREAM_PORT,
+        timeout=HEADLAMP_PROXY_TIMEOUT_SECONDS,
+      )
+
+      body = read_request_body(handler)
+      headers = upstream_headers(handler)
+      headers['Host'] = f'{HEADLAMP_UPSTREAM_HOST}:{HEADLAMP_UPSTREAM_PORT}'
+
+      connection.request(handler.command, handler.path, body=body, headers=headers)
+      response = connection.getresponse()
+
+      response_body = b''
+      if include_body and handler.command != 'HEAD':
+        response_body = response.read()
+
+      handler.send_response(response.status, response.reason)
+      for name, value in response.getheaders():
+        lower_name = name.lower()
+        if lower_name in HOP_BY_HOP_HEADERS or lower_name == 'content-length':
+          continue
+        handler.send_header(name, value)
+      handler.send_header('Content-Length', str(len(response_body)))
+      handler.end_headers()
+      if include_body and response_body:
+        handler.wfile.write(response_body)
+
+      connection.close()
+
+
+    def copy_bytes(source, destination):
+      try:
+        while True:
+          chunk = source.recv(65536)
+          if not chunk:
+            break
+          destination.sendall(chunk)
+      except OSError:
+        pass
+      finally:
+        try:
+          destination.shutdown(socket.SHUT_WR)
+        except OSError:
+          pass
+
+
+    def tunnel_websocket_request(handler):
+      body = read_request_body(handler)
+      upstream = socket.create_connection(
+        (HEADLAMP_UPSTREAM_HOST, HEADLAMP_UPSTREAM_PORT),
+        timeout=HEADLAMP_PROXY_TIMEOUT_SECONDS,
+      )
+
+      request_lines = [f'{handler.command} {handler.path} {handler.request_version}']
+      for name, value in handler.headers.items():
+        if name.lower() == 'host':
+          value = f'{HEADLAMP_UPSTREAM_HOST}:{HEADLAMP_UPSTREAM_PORT}'
+        request_lines.append(f'{name}: {value}')
+
+      upstream.sendall(('\r\n'.join(request_lines) + '\r\n\r\n').encode('utf-8'))
+      if body:
+        upstream.sendall(body)
+
+      handler.close_connection = True
+
+      client_to_upstream = threading.Thread(
+        target=copy_bytes,
+        args=(handler.connection, upstream),
+        daemon=True,
+      )
+      upstream_to_client = threading.Thread(
+        target=copy_bytes,
+        args=(upstream, handler.connection),
+        daemon=True,
+      )
+      client_to_upstream.start()
+      upstream_to_client.start()
+      client_to_upstream.join()
+      upstream_to_client.join()
+      upstream.close()
+
+
+    class Handler(BaseHTTPRequestHandler):
+      protocol_version = 'HTTP/1.1'
+
+      def _handle(self, include_body):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == '/healthz':
+          body = b'ok'
+          send_bytes(self, 200, body, include_body=include_body)
+          return
+
+        if path.startswith('/auth'):
+          send_bytes(self, 200, AUTH_HTML, 'text/html; charset=utf-8', include_body)
+          return
+
+        if path.startswith('/clusters/'):
+          if is_websocket_upgrade(self.headers):
+            tunnel_websocket_request(self)
+            return
+
+          proxy_http_request(self, include_body)
+          return
+
+        body = b'not found'
+        send_bytes(self, 404, body, include_body=include_body)
+
+      def do_GET(self):
+        self._handle(True)
+
+      def do_HEAD(self):
+        self._handle(False)
+
+      def do_POST(self):
+        self._handle(True)
+
+      def do_PUT(self):
+        self._handle(True)
+
+      def do_PATCH(self):
+        self._handle(True)
+
+      def do_DELETE(self):
+        self._handle(True)
+
+      def do_OPTIONS(self):
+        self._handle(False)
+
+      def log_message(self, format, *args):
+        return
+
+
+    ThreadingHTTPServer(('0.0.0.0', 8080), Handler).serve_forever()
+kind: ConfigMap
+metadata:
+  name: headlamp-auth-bridge
+  namespace: headlamp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/version: 0.44.0
+    helm.sh/chart: headlamp-0.44.0
+  name: headlamp
+  namespace: headlamp
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/name: headlamp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: headlamp-auth-bridge
+    app.kubernetes.io/part-of: headlamp
+  name: headlamp-auth-bridge
+  namespace: headlamp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: headlamp-auth-bridge
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/version: 0.44.0
+    helm.sh/chart: headlamp-0.44.0
+  name: headlamp
+  namespace: headlamp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    headlamp.proompteng.ai/oidc-sealedsecret-sha: 4f3e015931e2b98851f3f9b8ad28fad04177fba38bfcf5ff7b50605726ccf8fd
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/version: 0.44.0
+    helm.sh/chart: headlamp-0.44.0
+  name: headlamp
+  namespace: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: headlamp
+      app.kubernetes.io/name: headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: headlamp
+        app.kubernetes.io/name: headlamp
+    spec:
+      automountServiceAccountToken: true
+      containers:
+      - args:
+        - "-in-cluster"
+        - "-in-cluster-context-name=main"
+        - "-plugins-dir=/headlamp/plugins"
+        - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+        - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+        - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+        - "-oidc-scopes=$(OIDC_SCOPES)"
+        - "-oidc-ca-file=/etc/ssl/certs/ca-certificates.crt"
+        - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+        env:
+        - name: OIDC_SCOPES
+          value: openid,profile,email,offline_access
+        - name: OIDC_USE_ACCESS_TOKEN
+          value: 'true'
+        envFrom:
+        - secretRef:
+            name: headlamp-oidc
+        image: registry.ide-newton.ts.net/lab/headlamp@sha256:594cd781e4b15d1656997c3e51bc9c0a1a3fdd397fcee4f00087b000f0005471
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/"
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: headlamp
+        ports:
+        - containerPort: 4466
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/"
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        securityContext:
+          privileged: false
+          runAsGroup: 101
+          runAsNonRoot: true
+          runAsUser: 100
+        volumeMounts:
+        - mountPath: "/tmp"
+          name: headlamp-tmp
+      hostUsers: true
+      securityContext:
+        fsGroup: 101
+      serviceAccountName: headlamp
+      volumes:
+      - emptyDir: {}
+        name: headlamp-tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: headlamp-auth-bridge
+    app.kubernetes.io/part-of: headlamp
+  name: headlamp-auth-bridge
+  namespace: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp-auth-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp-auth-bridge
+        app.kubernetes.io/part-of: headlamp
+    spec:
+      containers:
+      - command:
+        - python
+        - "-B"
+        - "/app/server.py"
+        env:
+        - name: HEADLAMP_UPSTREAM_HOST
+          value: headlamp
+        - name: HEADLAMP_UPSTREAM_PORT
+          value: '80'
+        - name: HEADLAMP_PROXY_TIMEOUT_SECONDS
+          value: '30'
+        image: python:3.12-alpine
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: "/healthz"
+            port: http
+        name: auth-bridge
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: "/healthz"
+            port: http
+        resources:
+          limits:
+            cpu: 250m
+            memory: 128Mi
+          requests:
+            cpu: 25m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: "/app/auth.html"
+          name: app
+          readOnly: true
+          subPath: auth.html
+        - mountPath: "/app/server.py"
+          name: app
+          readOnly: true
+          subPath: server.py
+      securityContext:
+        fsGroup: 101
+      volumes:
+      - configMap:
+          items:
+          - key: auth.html
+            path: auth.html
+          - key: server.py
+            path: server.py
+          name: headlamp-auth-bridge
+        name: app
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: headlamp-oidc
+  namespace: headlamp
+spec:
+  encryptedData:
+    OIDC_CALLBACK_URL: AgCNHHxjy78dYlDpxOyJyJKof4GGrq5Am6nE2ohQSt4YZvc/izhD+h7RRafxTTAfYqZFnPzhHUSoLhB1ikwgqPVblvc2SQJ6Pvblip3D/yzp6GrKLR4Rf5xXtsUFK8XdeNSqft/AyqszqTEv2WE3QFyb+/upz4szfTcC90GsnUOaKcm36Yfu4hhxGFQ0gV4Q0/oICy/yM+Sa1XcYfPSet3ME4nYAWwmV95GAD0SmRHT6ol8cOzzsf7JvETxTZFFJ4mr6xuL8CCt/jslhibGRWMB4TRjdXZCKi2BWDitinDHcX5hDRc+Bysn+kDbBrTXwNPxLUmTdMqC3vu7/bJhfLOsjAuImi2shuCGdBG9/FvTwJ2YS0L1xug9N0WN0NGDbcU0Gh1dhKV0TtdGxqZiOb5fMMyTMR8vuknJI+xf7Um/j16+gXCnc/F1kn/+WjofD4bzfQnBaqBZ7EpmbqJd2Ltlfxw4HRTDA9/FWr50Hhct260ke1fUSOVdMR1FIB/noNlfBOiVOwld1If644w7AEMgr8k0fYcwpxiO/UkUWVBVSrAaiPuRbGvKSZ47lTJ5RGNGC9d9lJpBfVGkhPFV/yU1dH71R44yyM/tdauOU7VY2xs7Q+YEKBirNo4Hv1wCUhtTRP4BMIplBo0JNMuzZxkUV5VyxRLbHCy18BmYUM72+E1xyv84YhEDuza2TbdiYP6RR8m2vBc49KkmkJTaG9v1ZD0IBOGCaCu9GC452MnywZ/9quzVtWt8XVyUXaUrbkb8=
+    OIDC_CLIENT_ID: AgAF6t7a4le23f7BlZ1r8X3SX+32+CoKE4tVHPxJRgnT7dMQSv+uctpoFqKmbk7VJIl8KDjgBibH6S8bXGhc6Y3n3zh71fEtVP2IuyMuhGQ0cQfOZ+QZru/+PEXl1B9RaDrQfLrHABec4cRaJKBJYRLrasxxHX+g2DuWfyT9uGowoHAyAM2qqanSgUFO6AanBcGG4BzIAbX0ksxSV6FnirTK5ORS14orXasmsDfk4d3+C/EFDBrpmQsSstwt9Qf98p7efyjjK2kpwHUaZbPsKYi0aLpMVwLer7P9tvbeExneNuhZnUQK5RkAsccITL/UCgmoZBmR9QE7GOUyEkZ5k7FjTizOG+SsggEar0OYk9A/C5lRv9yGR5r4dDYCV2IOGWyFvpXAKZfVmkb8Vi7U3GbAPyti3HdbYYwGAL4qswo3TZUhyGUjRhnpPJUe7nU5ElsonKHf6hj6bm5qsYyfXGfYYzubuxzBKT27Lf668rBJD8zD+FPXSt2lW3Uj0AXXoI24K6FkfZeRdpSBg6mHSYZ2QsT91AQFgxk8XDv3BCgy1a6Wo2Zyx0ob68d2U19iT6p3seGoJYSQ8k2NsMd//1+puN75s3PNZ/ok+7D+hyrVTWuQ6dbSWd9OZ1YnnP05noEO8ATvk2IgbzRojmTFdGJylSsxjw8hD/Oc6BRnqbpvdOqka/WDGX82TzAMblgN4QhLcNo8i2039Tqv
+    OIDC_CLIENT_SECRET: AgAni4tx3hIi4EQLEfXNddLTzSHmNsZWhyWrYtm2e+faSeyNUd8TXWm385gENrIVOSNMfVBKt8JF0kd9VqnmQqwdyYxK2PqIxbUm0Yh3l8xxplD64q3tOjKEWH3bl4HXZsXWy/ufbuVX7F4+QECCXEq26UQ3qFudquHf/UaTo8OYcE9RJF9nF55+kudg0qwHktKXfp/9EE3Dyextn2DJisAp9l4fbw6DFVPcUynnzPAp2UFTLRiYWDP9vqseNYNBsSz/QlfEnlq6j1+Q2IA8hAXPjac2YO2bgLjFLRHr3OMa/tEoSrc0CjeSfeQiAtU0ZroVRXXhrmpZjJe5zsrzNByEMSf596yS+j4G3Giyy924QbkimDPnXLLLlcldKbCqfPOaUVODsHaC8E/xW92E0yjvyxuaryiJpSBhQiNb/rQOuspNZX2ja4VCYKPlAsYbiwxWe8sbKf6v4WTyvzbQWIdgvaRx3d5DCw1ozRx05iKu5iyHr3g1Qv3SbLgTB+nYTKfEKeNLXaym73ikZK/WEnglEhlf8DaPlufN2KLAoaMmOldZhx366VXt5TxOy8S3OK1k7+Jt4RNuWQi08yPwQ2wJnh4+zPt0KtQ6n1RrH7/XMwvbgCyjP07BG2HGFbYhk+VSOtDNGPLHEp+Cx9zt8u7m8YjyH4C0sUmF7fvlybsYIwmIHNxaUhQc4bXjqTymL/hjx2+GA6wUZvFP0IpTjVa0bLzL3/+OIdNlCjK8JZAh3g==
+    OIDC_ISSUER_URL: AgA/HB6+qeb6l04/CVJcncg9lKHZvFmGBpo2oonjf5PablT0SRUZFYKNWWBReHEUOQPlUd0xwfTNWgx8xEQJosbXOCsAg9J0IAeQoWhe482bc2ZSTCoXY5Cj9mcdcTRKkhLo9h+8MJodLI3Bpl497w6oiqNqmz3vZRBQpPOzc23ySD1q+Uh3/dYkofhPeqQlrkSbCIp7DSkFeW2WtGVe1GCcwX2yy7OM9iRzKY+b0AVHjqFDTSTNNZ89Y+PvX6r9ZTwtYSTPWkNubhDIUKQqWG139kP9JhGq7kkBPMhk9i87ir3bySoBHrx8VPSZW0mUL0ivOBbqZvcDA/J8TzBD8HNbG6XaCBGpSNUVPgad4tDitvoUgxMZ7OcXM9E+0NMyrdnad6xPSsgh+TOSRsN3SSiRFRCDVVlZ5RMTnfc6+FmO03XkCUDu6TFt/NboEIadg3p5sUMlutWAeismwqaBq/TAz6ZnDRmyU5zPFPydt15sZ+SFMnrEBQnkRDjTuTLQock2FitL6Pt8EtE/Cf3XHUF9Hl8Dh8PQGYTJpla0idlTutMyRalrVbqBh+thRRSv/iUhhUTjIT7FXNzUnZx7yaBjY1IRTIDti+0zgq6uo76vfr4ExFVm4xIbDI+JiZ3wxbEJB1gpo0T7fKa/I0ZAxOu1VnxXnY0VdI1XJKf+72oW882+M6RqaeMXEySg6ndcgzsVt8u9x9ORWlNOWxTgHonT+1jwEqhos8muu+7CINxxZT0xYRZKioIK
+    OIDC_SCOPES: AgCrqac/Z0upTWZ5uTDbe9umCd8kL5LMnagpKqfbjJXVcYMLCsPRiUuJgRhpqwoRT8zVVOZZaKCQgh393X5fNqBeNpzXd/9xRhXRkWtGqpV1c1UonUVhm1raocKSdnJk3oiZiMEm2mLT7xrp1GgLPjfuuCSBK7AOY2gmeG5uLOMnqCni2u9fZ2oiR8/VbG0AC+QL4gG5EQ0vpFpEu3C33MGq5MPdi0+gcxePIeJw2cO/jCjSRDCNVKsGufcEOvh3/+HpBaokMJIZq2NOR0Dq92O+igyLrtVOvJs7KWybbpR/Rf8YZkqCRw07Yc/StwsBOWFGTkH9n0xSdl69Dr01NBEJkdjjaHcqnx+k75Y+C/3j68DGHeLIIlVJzVVbaw6a9H6MVKs8tMtYxJE8JnaPLuK314d51f8EE5L5Gsl+b6fU+N59PSesFZCyaIP5n3aTBiMmrUjWt+LRFjSbDZoMtxaY8ohda+LGJ0htCcJTNe14ckQKuW0aqrtIGoyUVk0HqAo+x652wxUoaK0JK+tpglaM0zux2Vrd6yypIF79cWqWidebaoyIz0Y41nvU5GlFyW6kFJvmcM43ZtngTu7ZARKHfOhzM5MqX4SAXdhdlasp2jfBZhag6qonOPp8SkuCvoglOtn0GV1ReinehFrMrAQ7UjUgpKOx3pSL/r8PMNAffPR81R9P+VPTwyHYIzPiZEYJ4481gZPQtOqBvTF4k5zmnLsaZZtycjO1hSxLYnwP66OQQg==
+  template:
+    metadata:
+      name: headlamp-oidc
+      namespace: headlamp
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/version: 0.44.0
+    helm.sh/chart: headlamp-0.44.0
+  name: headlamp
+  namespace: headlamp
+spec:
+  ingressClassName: tailscale
+  rules:
+  - host: headlamp.ide-newton.ts.net
+    http:
+      paths:
+      - backend:
+          service:
+            name: headlamp-auth-bridge
+            port:
+              number: 8080
+        path: "/auth"
+        pathType: Prefix
+      - backend:
+          service:
+            name: headlamp-auth-bridge
+            port:
+              number: 8080
+        path: "/clusters"
+        pathType: Prefix
+      - backend:
+          service:
+            name: headlamp
+            port:
+              number: 80
+        path: "/"
+        pathType: Prefix
+  tls:
+  - hosts:
+    - headlamp.ide-newton.ts.net
+    secretName: 
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/version: 0.44.0
+    helm.sh/chart: headlamp-0.44.0
+  name: headlamp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: headlamp
+  namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/managed-by: argocd
+    app.kubernetes.io/name: headlamp
+  name: headlamp-oidc-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: User
+  name: oidc:admin
+- kind: User
+  name: oidc:gregkonush
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: headlamp-auth-bridge-private
+  namespace: headlamp
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`headlamp.k8s.proompteng.ai`) && PathPrefix(`/auth`)
+    priority: 20
+    services:
+    - name: headlamp-auth-bridge
+      port: 8080
+  - kind: Rule
+    match: Host(`headlamp.k8s.proompteng.ai`) && PathPrefix(`/clusters`)
+    priority: 19
+    services:
+    - name: headlamp-auth-bridge
+      port: 8080
+  tls:
+    secretName: wildcard-k8s-proompteng-ai-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: headlamp-private
+  namespace: headlamp
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`headlamp.k8s.proompteng.ai`)
+    priority: 1
+    services:
+    - name: headlamp
+      port: 80
+  tls:
+    secretName: wildcard-k8s-proompteng-ai-tls
