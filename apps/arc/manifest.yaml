@@ -1,0 +1,442 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arc-arm64-gha-rs-kube-mode
+  namespace: arc
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-controller
+  namespace: argocd
+spec:
+  destination:
+    namespace: arc
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: apiextensions.k8s.io
+    jsonPointers:
+    - "/spec/preserveUnknownFields"
+    kind: CustomResourceDefinition
+  project: default
+  sources:
+  - chart: actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+    helm:
+      releaseName: arc-controller
+      skipCrds: false
+      valuesObject:
+        nodeSelector:
+          kubernetes.io/arch: amd64
+    repoURL: ghcr.io
+    targetRevision: 0.14.2
+  - chart: actions/actions-runner-controller-charts/gha-runner-scale-set
+    helm:
+      releaseName: arc-runner-set
+      skipCrds: false
+      valuesObject:
+        controllerServiceAccount:
+          name: arc-controller-gha-rs-controller
+          namespace: arc
+        githubConfigSecret: github-token
+        githubConfigUrl: https://github.com/proompteng/lab
+        listenerTemplate:
+          spec:
+            containers:
+            - name: listener
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            nodeSelector:
+              kubernetes.io/arch: amd64
+        maxRunners: 5
+        minRunners: 1
+        runnerScaleSetName: arc-arm64
+        scaleSetLabels:
+        - arc-arm64
+        template:
+          spec:
+            containers:
+            - args:
+              - |
+                set -euo pipefail
+                for attempt in $(seq 1 60); do
+                  if docker version >/dev/null 2>&1; then
+                    exec /home/runner/run.sh
+                  fi
+                  sleep 2
+                done
+                docker version
+              command:
+              - "/bin/bash"
+              - "-lc"
+              env:
+              - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+                value: "/home/runner/k8s/index.js"
+              - name: ACTIONS_RUNNER_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: DOCKER_HOST
+                value: unix:///var/run/docker.sock
+              - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+                value: 'false'
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: runner
+              resources:
+                limits:
+                  cpu: '8'
+                  ephemeral-storage: 80Gi
+                  memory: 16Gi
+                requests:
+                  cpu: '2'
+                  ephemeral-storage: 4Gi
+                  memory: 8Gi
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+            - args:
+              - dockerd
+              - "--host=unix:///var/run/docker.sock"
+              - "--group=$(DOCKER_GROUP_GID)"
+              - "--max-concurrent-uploads=1"
+              env:
+              - name: DOCKER_GROUP_GID
+                value: '123'
+              image: docker:dind
+              name: dind
+              resources:
+                limits:
+                  cpu: '12'
+                  ephemeral-storage: 50Gi
+                  memory: 16Gi
+                requests:
+                  cpu: '2'
+                  ephemeral-storage: 6Gi
+                  memory: 8Gi
+              securityContext:
+                privileged: true
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+              - mountPath: "/home/runner/externals"
+                name: dind-externals
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            initContainers:
+            - command:
+              - cp
+              - "-r"
+              - "-v"
+              - "/home/runner/externals/."
+              - "/home/runner/tmpDir/"
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: init-dind-externals
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+            nodeSelector:
+              kubernetes.io/arch: arm64
+            securityContext:
+              fsGroup: 1001
+              fsGroupChangePolicy: OnRootMismatch
+              runAsNonRoot: false
+            serviceAccountName: arc-arm64-gha-rs-kube-mode
+            volumes:
+            - emptyDir:
+                sizeLimit: 80Gi
+              name: work
+            - emptyDir: {}
+              name: dind-sock
+            - emptyDir: {}
+              name: dind-externals
+    repoURL: ghcr.io
+    targetRevision: 0.14.2
+  - chart: actions/actions-runner-controller-charts/gha-runner-scale-set
+    helm:
+      releaseName: arc-runner-set-amd64
+      skipCrds: false
+      valuesObject:
+        controllerServiceAccount:
+          name: arc-controller-gha-rs-controller
+          namespace: arc
+        githubConfigSecret: github-token
+        githubConfigUrl: https://github.com/proompteng/lab
+        listenerTemplate:
+          spec:
+            containers:
+            - name: listener
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            nodeSelector:
+              kubernetes.io/arch: amd64
+        maxRunners: 5
+        minRunners: 1
+        runnerScaleSetName: arc-amd64
+        scaleSetLabels:
+        - arc-amd64
+        template:
+          spec:
+            containers:
+            - args:
+              - |
+                set -euo pipefail
+                for attempt in $(seq 1 60); do
+                  if docker version >/dev/null 2>&1; then
+                    exec /home/runner/run.sh
+                  fi
+                  sleep 2
+                done
+                docker version
+              command:
+              - "/bin/bash"
+              - "-lc"
+              env:
+              - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+                value: "/home/runner/k8s/index.js"
+              - name: ACTIONS_RUNNER_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: DOCKER_HOST
+                value: unix:///var/run/docker.sock
+              - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+                value: 'false'
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: runner
+              resources:
+                limits:
+                  cpu: '8'
+                  ephemeral-storage: 80Gi
+                  memory: 16Gi
+                requests:
+                  cpu: '2'
+                  ephemeral-storage: 4Gi
+                  memory: 8Gi
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+            - args:
+              - dockerd
+              - "--host=unix:///var/run/docker.sock"
+              - "--group=$(DOCKER_GROUP_GID)"
+              - "--max-concurrent-uploads=1"
+              env:
+              - name: DOCKER_GROUP_GID
+                value: '123'
+              image: docker:dind
+              name: dind
+              resources:
+                limits:
+                  cpu: '12'
+                  ephemeral-storage: 50Gi
+                  memory: 16Gi
+                requests:
+                  cpu: '2'
+                  ephemeral-storage: 6Gi
+                  memory: 8Gi
+              securityContext:
+                privileged: true
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+              - mountPath: "/home/runner/externals"
+                name: dind-externals
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            initContainers:
+            - command:
+              - cp
+              - "-r"
+              - "-v"
+              - "/home/runner/externals/."
+              - "/home/runner/tmpDir/"
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: init-dind-externals
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            securityContext:
+              fsGroup: 1001
+              fsGroupChangePolicy: OnRootMismatch
+              runAsNonRoot: false
+            volumes:
+            - emptyDir:
+                sizeLimit: 80Gi
+              name: work
+            - emptyDir: {}
+              name: dind-sock
+            - emptyDir: {}
+              name: dind-externals
+    repoURL: ghcr.io
+    targetRevision: 0.14.2
+  - chart: actions/actions-runner-controller-charts/gha-runner-scale-set
+    helm:
+      releaseName: arc-runner-set-analysis
+      skipCrds: false
+      valuesObject:
+        controllerServiceAccount:
+          name: arc-controller-gha-rs-controller
+          namespace: arc
+        githubConfigSecret: github-token
+        githubConfigUrl: https://github.com/gregkonush/analysis
+        listenerTemplate:
+          spec:
+            containers:
+            - name: listener
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            nodeSelector:
+              kubernetes.io/arch: amd64
+        maxRunners: 1
+        minRunners: 1
+        runnerScaleSetName: analysis-arm64
+        scaleSetLabels:
+        - arc-arm64
+        template:
+          spec:
+            containers:
+            - args:
+              - |
+                set -euo pipefail
+                for attempt in $(seq 1 60); do
+                  if docker version >/dev/null 2>&1; then
+                    exec /home/runner/run.sh
+                  fi
+                  sleep 2
+                done
+                docker version
+              command:
+              - "/bin/bash"
+              - "-lc"
+              env:
+              - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+                value: "/home/runner/k8s/index.js"
+              - name: ACTIONS_RUNNER_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: DOCKER_HOST
+                value: unix:///var/run/docker.sock
+              - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+                value: 'false'
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: runner
+              resources:
+                limits:
+                  cpu: '4'
+                  ephemeral-storage: 32Gi
+                  memory: 8Gi
+                requests:
+                  cpu: '1'
+                  ephemeral-storage: 8Gi
+                  memory: 2Gi
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+            - args:
+              - dockerd
+              - "--host=unix:///var/run/docker.sock"
+              - "--group=$(DOCKER_GROUP_GID)"
+              - "--max-concurrent-uploads=1"
+              env:
+              - name: DOCKER_GROUP_GID
+                value: '123'
+              image: docker:dind
+              name: dind
+              resources:
+                limits:
+                  cpu: '6'
+                  ephemeral-storage: 40Gi
+                  memory: 10Gi
+                requests:
+                  cpu: '1'
+                  ephemeral-storage: 12Gi
+                  memory: 2Gi
+              securityContext:
+                privileged: true
+              volumeMounts:
+              - mountPath: "/home/runner/_work"
+                name: work
+              - mountPath: "/var/run"
+                name: dind-sock
+              - mountPath: "/home/runner/externals"
+                name: dind-externals
+            dnsConfig:
+              searches:
+              - ide-newton.ts.net
+            initContainers:
+            - command:
+              - cp
+              - "-r"
+              - "-v"
+              - "/home/runner/externals/."
+              - "/home/runner/tmpDir/"
+              image: registry.ide-newton.ts.net/lab/arc-runner@sha256:d7690c5c34037ce945c44edd362e6d61e6b625622bc69cff17aa0a28923a705e
+              name: init-dind-externals
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+            nodeSelector:
+              kubernetes.io/arch: arm64
+            securityContext:
+              fsGroup: 1001
+              fsGroupChangePolicy: OnRootMismatch
+              runAsNonRoot: false
+            volumes:
+            - emptyDir:
+                sizeLimit: 20Gi
+              name: work
+            - emptyDir: {}
+              name: dind-sock
+            - emptyDir: {}
+              name: dind-externals
+    repoURL: ghcr.io
+    targetRevision: 0.14.2
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: github-token
+  namespace: arc
+spec:
+  encryptedData:
+    github_token: AgBrgrvVoZr1wBdOKla8UcAK19aNOq8+TD0yj5MBKZ0RTlL3nTeYO2PtD1QRDfz4eObkwEPqVstYPc9u8VPhT4Hwso9SBBhqjzMG8gGlqd9szmHeOf1nt/QPoslwUUB6dM6AY7+bLbzvrKYaW70k5pv5uof66UMTb7VYgpDC+3PtrX/UqPm/Yesjmer0VEEBKlqyPAo9IwMRlUgbVQu+ORf0Wh9Yk4A4xABTYP8YVeDdGotiBZrBAbh6geJIK/0Y9hrYWqr81lkrKdxJKD47rWPNlBC6KlySx86DsoBO8KSou/C/LerO3/w8Q84SFgQMXoXAej2Xur45biRPYStH4VN9LRtMW8W2wf39TXwVV+ejjXQrk+Ytx/+chp53/bhEZ6sR33Lg2l2NEQSGnNW0/VQh0D7sUXh66om7ldyW9g6EgSWgD+MtCKxfMTsLArXKLJWxAmqfWsMob86Qcdn2QDg2JvK7fnKh/nfkJ/PwFAJG8bMyC75SDu9Qg0LsTC6IO4Nbkrb4hrGbAo7QDKYXIeZjeVKsMrtlWV5yC6CWJ2NJ1Z4bObXH3yKe/0rRNT6Sx8BZp+Ui68VcNa9Kp/k2fkr8KAIJtdJK9oRwBxoHrgkRoWbexrKof0SIQMSs4+DE7pYqnhK7Opt3g7PfcWezDq59SvxRERh1J2QKqnXfeHbotyJuxzNcQRklUsLtbPwjzAJIFRxvwIS9g3VS6IfY3J5fFQjow0iwQtGQuCw6b+hkm4gOxAN11lG2
+  template:
+    metadata:
+      name: github-token
+      namespace: arc
