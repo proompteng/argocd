@@ -1,0 +1,47 @@
+---
+schemaVersion: 1
+stage: torghut
+applications:
+- torghut
+freight:
+  collectionID: 44f999540cc9545bd7a496fbcddecb3952ddd6bd
+  items:
+  - origin:
+      kind: Warehouse
+      name: torghut
+    name: 94fb20520f499ec61316edf832cbc2677d4d2141
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/torghut
+      digest: sha256:e1bcb2c3adb2c58296ad71537de21a30fea2ac0a887a04479f44c4f26ba1f334
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/torghut-notebook
+      digest: sha256:ea37248e46bf7a9421802941bd2e8cdc1f6c136ed58dcee470c37a7530a5283e
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/torghut-ta
+      digest: sha256:6a7a7f887eb0a12d47bead5d7a55898c4f21890bff61b22e4e3f772cf0c61c25
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/torghut-ws
+      digest: sha256:f46a6130e2fa302ed08a486e44249f9080e88630fd4ea3333e1b02f2dfe470d8
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/signal-publisher
+      digest: sha256:4b3c89afe7da2bd6d7157a509845878b4e1e83aaf86891f2189b51b978395c32
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
