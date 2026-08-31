@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: froussard
+applications:
+- froussard
+freight:
+  collectionID: f28ed4a15f11526bec36f59992ebcd8cccb8b9ac
+  items:
+  - origin:
+      kind: Warehouse
+      name: froussard
+    name: 9bf297165f0d4db6319e97f28cf8eec92b03670c
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: fe6c75754777e48e4ea9ee8f560e531a61e31643
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/froussard
+      digest: sha256:35489f090fa1b2b27516aa844c0e5edfbfad6d39033b63766c2cd56ae2e72ca1
+      tag: kargo-sha-fe6c75754777e48e4ea9ee8f560e531a61e31643
+      annotations:
+        org.opencontainers.image.revision: fe6c75754777e48e4ea9ee8f560e531a61e31643
+        org.opencontainers.image.source: https://github.com/proompteng/lab

@@ -1,0 +1,237 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: discord-codex-bot
+  namespace: argo-workflows
+spec:
+  encryptedData:
+    bot-token: AgAjXO11yo+UUUwW5IWGAYGztR3o5uS1XpMv8sHI7eAFFFXUE9z/1R2sDHX48xw7jlRFAHInMTLiPcTuUQPDB0hMsm/5R0084jjoPAuKM1fe2r+zdpw/gizgzkhZkCSrLamckeW9FRqOexgB1IoVgVFHoNdX9MmdO66Vr07kg+RHnDeXr5Zm18Tb7/EU44uCAGkszgH2mPgSvhxQS+QrWoThK4HjCjcg83Ep0lS5+N07n7CMJqyL58TaDeFyRJxtEM3hvi48KoY2D/Kk0rnMoaEsxqHchX7l+bC4zypmv090pZCX57OAAzo+MTkATcjU5UFewoixvK6WFiIfyxBRb/Vv+fqeQ+P1RgSRX/IIi1h2BXmhZIlEuz4edSPTu8wNVzUCTJJ83KTWX4dIW2vb/8qwxGOUQMUUsEu0M1pp4FTHZFVCA9FCixbxhzOj/C/BqvsEs3xIJL1liaO5FYIrOCUyFoa365AtlVb+IEQC6lBzuNLdBou6hZSgF0GorI9lg6I4eS6Yn5Iw4hsSWxAWdKmNQRM2DERs+oDFO9rInwfvlopfZKzAphHmqsfkYPyJ6K9o0hggXHcRinkDmBTVzz/YAeo/Emjiqrv2/ADzLT9sD4C7rcsU/kjJqeTcfG4qeZV1rcnWrH+VvcBjw9bDyL7HIbLZW7TKOg2jtv1rn2wzc+crwfdrwWgbMWjfyehClx5EbBQjo/H+rf/adNdyrr831sAtBovDi9wDwnCz8J7HhRtX8JyTg+dg41DGWS3CUBIOVhpnQb2vB7gB0HueySw4e0VFaiNW7XY=
+    category-id: AgBNamz9bPKHH0hNbPB2osGHzB+Q0A6hN1Sq903BJmKRWdpXkL8Hb6QZsfoSneAHCDWtFjr441OpiSmbr/oLJBkK3iW2UaL9nROw5gZ24vovvamKRCC5YvgkxoSzHyx9DdeNS4GQ4KiabmxG4zU4V5WpUGTtNuzTaui1CUlMfk5CS8BwqzSEsGhGNzxhB7Stx2RHyK0SCYgL/Tmb8aXkt6l4laEYD7+uxFOcwJ4T6Jnvqs0ZKf64uVBeUF4c3rdkYlRBb/sdZRD95v6i2tJSJcK/RLLaPVRb9N5vl0c3vxuFibvcM0UER9IQNZUAICH+Bo1sByMOkY0adqy2U+6jBlS7aSLAS4JQKfQnZl4q0OJvWA/oL6++pyIM0wvElosd3PPKB8NrF3B3iv6Wdyj9KZdsM6p2yHOrHzE7PUbhf3qdhdbyNWIr+Aqg+MF5Yk+F2dcyQPsNT9jhjIPd4wKzoQoWSAbN4S+756NIAks7nFA/UIUkS1VV+qScLW0tvmD8T4qrO8kdHzlYD9vwQtuY4FCIRBpDwu+IGkRkSKlw+9jjhAAJ/xGfJvyfBC2pkR3JwjZvHdAXS5mZOIjNKFOW5tZYmFDb8dKVh8Q/oJpj1TOyu4hk4fe+YY+0IByICquHw7m5hQzmoiA3fc2jeoEJNzMXLN/K0RVC+ZhY8UgRLVCTENEajXJO6TVP8DipqTxeMpYepZ2AQrM10a7vnaIIWb0tF06Q
+    guild-id: AgCLf0Drx4AJXIwTU499KryyOsS1sSxFr4Q2Q5t1z32OfXx7rVoSDTIBK1zRsKr7dgYTcFQc2fy+ZjWof6jPhbOtVfzTCVuibhIhl7ukGRFHlmZcUTcwEdaFWq8mki39kQKqieMBU90psYGoFDXTHqGgBWOCqJCeoy0hd4O2GwTC7azbEJWohDDxRfmwhQPwOXdC9inq2+eKtA1eij0BZAfMU9WcTC0nu5ImQb8AjbHjLiPeelaZMPkziMECvrzqKCC+CIYVVb4J2xCJoLNcEuwhSnjpYPa1ZZPxWmz7BVPFDpKu+3NPASX3We3gUfLSX0SzGX19rlYlLsCNOyNaxrVfR9vlSrNJUZLmTyo3kcHPXPO0Lt4ewWXlj1mp+xRCeAIMUCQR4+4OJi2xuuOc2BDIS4mM0jzTIeTHHenXnTTGr/Ddcp7t5pylXjlfbeacQ8HklQKi9qVNsOQqtDNDAdlIS9upDt6Ko08VJgzq319wDKaVVVI1/s+LHkWFaYMJWDXNK36jQroGuXTV4ejVJ1lW2wvs2m7fB4IaBIdUXnjnienRa/bvMJ6VV2QkWtBSqY6UqFmnSamQP75P/WXRQ+5aX0McUEu6cDu4r0wW2Ci0C3f62lLDOZ/zpV4Olsc/FDHI6/Ho5QtVhpdD40QnSkephW9Q5L9ikEhKjxGsO2/llq6/ICd6O1uGa/CW14m7IWeUKVdW/BrtgEe6v3afr2x1RQli
+  template:
+    metadata:
+      name: discord-codex-bot
+      namespace: argo-workflows
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: github-token
+  namespace: argo-workflows
+spec:
+  encryptedData:
+    token: AgAH5zCbsl2AMfEwf9xq52dFFBTCoyFzyQ7l6WE1Nj1Mj4DVyNR7blE6ocowc8Dbf0tOgNkh+2hpUFp1WuX8h/He/0msaJFwj3YUdmHKVuISestFcEZ1U/ZNlE8lMhrXAgagu0KwnYhNimBBm2If+5IyST0WaiyjRmzzTix1amExCWesTiy/CJVJbsSiu9moX5h/QHBC14hMzyshh8ZEpXIXMXS76ZtSfHuJcJQEVltNpp5yYe0DVwRkpIspZzTFzpMDGZvchGIGYEmmWse3xF24PFceFiRFOXWcN0EmuFo4Xiz5ESyiI5RFX6Whji4I7HudIUdk0PY/JTecC1ZwcctDAFIOpOZjorIt0kDDVNUBa11YLyHNo7QZC5BHSpfeuYDc9ACLwEa4zMdlsr3DdWPbKtvINC9veShqsQHBGoZ1IQM7pGin8haG4lOa/5+dM0n9FQfGC3TsJ4IbfSbmeuj4Lndtd6tta0dZM0EEbaj+OVCMcyx0+xTM82WnbP3NISRZjhxpVgGw9/xV9dz4xUUh+VGQ8zedbVfbeD/LbvkYKuglTq+aRyH1XZjhPlmkFNV4GmAT3wmHSQ1JrHROrGxFdADySuOLhD8jpKGm3o5XdSJC+lEqOj2jQuaVosVLi140TMpUdpvUPbADN4iXs8vpnzilai1Q1GbtphwmHUOdEz18FDH73QEkYhmzmmLWwDd9W4a6DukkUmFKxDJs+S/u1t0Ubf26O+rsc5Hsau4XhhAARZOMngW9
+  template:
+    metadata:
+      name: github-token
+      namespace: argo-workflows
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: discord-bot
+  namespace: froussard
+spec:
+  encryptedData:
+    public-key: AgDBlwdSKgdSCIVJSWV/5VEQB/VwUX4xqVuG6u4BXF4o/qSV0UYDTTg3saa9Lu9jTtKVSOAs1KfJPmvJJYVf+PgNeCo3rG7zIoRG0fpRfVe/ygA9fYNPICqlXNidRiOO6yK5V9rELgbd0KSJZdg2eZTfdX/++og4khUVnPuBq4QgvVtHeFkmZ5t7mhd0IdrRg7Fw+diEo1c+q5Ncfr2C93xJELMotQRu0vbBCLEkjg2edUEhzkxsEQODb4+xV3tw3oQIc49s31HlHKMg+psugcwB1+WxE38MumpUbgN2ByIKMRTyGIs8HQLUjJsCUGxjIt4u4RJ/MQyuq5TfXZXEn7x3epKABc9QE1w4oor4jntOWOnoQrkjYcRUYP+DlAx5O4nwgjVS9cwLuukcN7KO282AwktWE5tzgqsy518xKI8sGel/sECVaB005f9KVVnvVr7L4X78Bx2rLDEKEB9tsFoX9P6MhrpHuU8WqGTUvNnwHgS9wkVb3rmMiBifMPTznzARsXCnh87dPQd/8+iO9TsDAkoYtvhLTCZClsTauZWOovAQ5OoeQgMV13lr1YwU67LOJ6MTOA1+tvMwj/aMHFwLBWgC/buwQ59WL3vbN8+I+V9EbdfPYlFJ1SNnkqtJ74NIYXXSYZM+9Qgj+BmpEHHrPNIppD/ayYaeJ+TLSINiXWzyA2i/Wm7om/cjRlUHZ24wqG28o5H75opliYH1X4yOLIsZDWjymUoxrjKyzndpcgy19maBVtnYAS2De19Ptx/2zWsaSjqSZNMh6hBNUz7k
+  template:
+    metadata:
+      name: discord-bot
+      namespace: froussard
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: github-secret
+  namespace: froussard
+spec:
+  encryptedData:
+    webhook-secret: AgAVyrG+A0vMjmXUsNMkRVhfvPaC/a7I7SkD5WXc6mk90VKxyLQVpAPYj+MgefBcaWSPCA+OA9Acf6AJaz+X9n7OWaJLByIiVvvrZe9dUkkFPO2p4f7ggIswDvol4tBKffzzwfh5Ov2dvCfxLnwouQYHl2MDT4+9qnbzJ11qEKUXTZyUe30bc8ZUBxgo/7HGIjuHJlHqfacHUkW7HS7RZZ2c76+YEpluii1NWlchYN3mNWA67pdfjUjaPn0qW3wZg5tp/jsvxUNijMAlHseM5/z6AkPUm5ZPqPEcXbU+o+NZSXI2+ZkqmQxHlWwEZGxAJwwnau331uu3ZkNQfhxEGGGiBYnT+a99PDoAnnwe5kIx+iPw4t314r4219Q4XNeC7dO3pWXfcRSusZp6xx+R3Gby/0tFSZtJkKZKRLq0qXOF1ueixniur+VxaQCc8yIm9qqey0z1zqvrN70FrLFzMVlJMk3iIvm3s36GPIyKR+tIOZHlykw+xgd0hPqYBIHXFFy57J+CttmPxK5dwbTttkesMMYX4WoQ2ZGlbSUBkPt+uxAJBhOEydj19ImR/W3CqobXDHUG4BABzoUVhUPWRZxds4w0fzLmOAXjnLm557WDZXJqVMpJbsMcA2uA3CIaVWGQwn1L3MBoGIAYJ2YJLkKTqxklRiNMAvaAphmy0rIWh9WxWfL/12SK3hbIcK0Fshw4iF0ns1kVLH3SyLU4qqgxzNtK5Mubh80=
+  template:
+    metadata:
+      name: github-secret
+      namespace: froussard
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: github-token
+  namespace: froussard
+spec:
+  encryptedData:
+    token: AgAXSMouPWBo4my2RD5bVeoKcwkkDmr2UtiV4RiHD6i6z2yu8k4qvZV/KW+xf3YQYsZypAYqIdccepR0Y9ooKFNRE+HaSLA32j6QneMcUYBI2nrxBnBGxHlc4mfqb7mp2P3KGonu9rD5lXn98rzQlghSyUyAUvaSC5lshMFwu9vkAHkRP8/Do0cVzi08hzmf2rjAvTNaleDjZlgN/PtikhMAN6fk9YcXdCMcb+Y8rG6SX7dlRHDgQC2mhitUW8ESCFXzRi0Aah9qPHaR5NA6SpMgQUGPV+AlquzIZnC/Csv9y3qdPU/GId0W4pCiqUcM4D8WgInKqytRPflL1ekv6KbStFsqr5v/P4olp02ak92Y649WVzEzRknGqqJtsk/svKQ2gmXHNObRfDVvU987q9cNSqcFap9Ki/jAyzXx6/ZrqmhpWzdTT4NY4it4ui6cSK5rmdCSEV+ATdu9iYTX22X5VsyWCR9/+NwUS3eMyOIuP6pO8+LhKvT4UIYywF4tnQY9UW7XzRNCGX5IcWeatDrooVtNfjeFC8BA4UZCMq4gO9fOsqKFbQZdDsE9T707IGgdEMWMSXRdAl/LJ83I2EWYIcRXgS9b+9fOAPtGSIxSB3YgQVvDC63/Pl6vvQhUOqBp1wzTBYj5vWn2zbHc7FOyopnvr2VIsGSLQcUiqnGcEBlJMEda5gxHH8c3Tr2ak839DdPBnYC/GSngHN61vULv5PJUnjD2z44kTm3gQbK4OBHbAzze2ANK
+  template:
+    metadata:
+      name: github-token
+      namespace: froussard
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: kafka
+  name: github-webhook-events
+  namespace: kafka
+spec:
+  config:
+    retention.ms: 604800000
+    segment.bytes: 1073741824
+  partitions: 3
+  replicas: 3
+  topicName: github.webhook.events
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: kafka
+  name: linear-webhook-events
+  namespace: kafka
+spec:
+  config:
+    retention.ms: 2592000000
+    segment.bytes: 1073741824
+  partitions: 3
+  replicas: 3
+  topicName: linear.webhook.events
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder-workspace-cluster-admin
+  namespace: froussard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: coder
+  namespace: coder
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    serving.knative.dev/creator: system:serviceaccount:argocd:argocd-application-controller
+    serving.knative.dev/lastModifier: system:serviceaccount:argocd:argocd-application-controller
+    serving.knative.dev/revision-history-limit: '3'
+  name: froussard
+  namespace: froussard
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: '1'
+        serving.knative.dev/revision-history-limit: '3'
+    spec:
+      containerConcurrency: 0
+      containers:
+      - env:
+        - name: GITHUB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: webhook-secret
+              name: github-secret
+        - name: LINEAR_WEBHOOK_ENABLED
+          value: 'false'
+        - name: KAFKA_BROKERS
+          value: kafka-kafka-bootstrap.kafka:9092
+        - name: KAFKA_TOPIC
+          value: github.webhook.events
+        - name: KAFKA_DISCORD_COMMAND_TOPIC
+          value: discord.commands.incoming
+        - name: KAFKA_USERNAME
+          value: froussard
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: froussard
+        - name: KAFKAJS_NO_PARTITIONER_WARNING
+          value: '1'
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+        - name: DISCORD_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              key: public-key
+              name: discord-bot
+        - name: ATLAS_BASE_URL
+          value: http://jangar.jangar.svc.cluster.local
+        - name: AGENTS_SERVICE_BASE_URL
+          value: http://agents.agents.svc.cluster.local
+        - name: AGENTS_SERVICE_CLIENT_NAME
+          value: froussard
+        - name: OTEL_SERVICE_NAME
+          value: froussard
+        - name: OTEL_SERVICE_NAMESPACE
+          value: froussard
+        - name: FROUSSARD_VERSION
+          value: kargo-sha-fe6c75754777e48e4ea9ee8f560e531a61e31643
+        - name: FROUSSARD_COMMIT
+          value: fe6c75754777e48e4ea9ee8f560e531a61e31643
+        - name: LGTM_TEMPO_TRACES_ENDPOINT
+          value: http://observability-tempo-gateway.observability.svc.cluster.local:4317
+        - name: LGTM_MIMIR_METRICS_ENDPOINT
+          value: http://jangar-alloy.jangar.svc.cluster.local:4317
+        - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_METRICS_TIMEOUT
+          value: '20000'
+        - name: LGTM_LOKI_ENDPOINT
+          value: http://observability-loki-loki-distributed-gateway.observability.svc.cluster.local/loki/api/v1/push
+        image: registry.ide-newton.ts.net/lab/froussard@sha256:35489f090fa1b2b27516aa844c0e5edfbfad6d39033b63766c2cd56ae2e72ca1
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: "/health/liveness"
+            port: http1
+        name: app
+        ports:
+        - containerPort: 8080
+          name: http1
+        readinessProbe:
+          httpGet:
+            path: "/health/readiness"
+            port: http1
+          successThreshold: 1
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      timeoutSeconds: 300
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: froussard
+  namespace: istio-system
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`froussard.proompteng.ai`)
+    middlewares:
+    - name: froussard-knative-host
+    services:
+    - name: knative-local-gateway
+      port: 80
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: froussard-knative-host
+  namespace: istio-system
+spec:
+  headers:
+    customRequestHeaders:
+      Host: froussard.froussard.svc.cluster.local
