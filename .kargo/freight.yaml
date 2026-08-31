@@ -1,0 +1,49 @@
+---
+schemaVersion: 1
+stage: agents
+applications:
+- agents
+freight:
+  collectionID: 9bae424d84860b85f3a9b7dff4baf90b54460f06
+  items:
+  - origin:
+      kind: Warehouse
+      name: agents
+    name: 0ecce1f0e3002106181d4f567314de50f2a00c43
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/agents-controller
+      digest: sha256:81bfb71ce4762b2b58a28a62b15feba57a1441925af30b65c2e1241762bce569
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054716
+      annotations:
+        ai.proompteng.github-actions-build-conclusion: success
+        ai.proompteng.github-actions-run-id: '33299054716'
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/agents-control-plane
+      digest: sha256:85b2b605508dc13e4fb48196caf9df2c5213e8bb264c57c99c1309be630f915c
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054716
+      annotations:
+        ai.proompteng.github-actions-build-conclusion: success
+        ai.proompteng.github-actions-run-id: '33299054716'
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/agents-shell
+      digest: sha256:512cfa77ea99d535038b4d552f147a63b6941b3d16321f0aaa76ef03c9aa14e8
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054716
+      annotations:
+        ai.proompteng.github-actions-build-conclusion: success
+        ai.proompteng.github-actions-run-id: '33299054716'
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/agents-codex-runner
+      digest: sha256:ab2b3bdf9b41e553622c560e641c4a02e4898c19bda8dcb340971b0e3e4317c1
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d-run-33299054716
+      annotations:
+        ai.proompteng.github-actions-build-conclusion: success
+        ai.proompteng.github-actions-run-id: '33299054716'
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
