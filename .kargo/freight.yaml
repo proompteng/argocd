@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: hermes-toolchain
+applications:
+- hermes
+freight:
+  collectionID: 9c8084f6c57a095cfb9ecfe8a97640a3fbe83554
+  items:
+  - origin:
+      kind: Warehouse
+      name: hermes-toolchain
+    name: fbea5d44e7137f43e3c18d4e652ba483ce158937
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/hermes-toolchain
+      digest: sha256:b3f83d929040d5270cda144a9590de9fd7465c521471169f2c886fccd507ff14
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
