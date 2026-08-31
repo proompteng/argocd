@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: bumba
+applications:
+- bumba
+freight:
+  collectionID: b155c555442f8f88a35cdb74060f6c56418a579d
+  items:
+  - origin:
+      kind: Warehouse
+      name: bumba
+    name: dd3d41055c459828d081b95e3b567bf818a0a90f
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: 4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/bumba
+      digest: sha256:8e33521f153aef08c66777889668dcbaf1a42daa23738c94853769edc237da02
+      tag: kargo-sha-4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+      annotations:
+        org.opencontainers.image.revision: 4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+        org.opencontainers.image.source: https://github.com/proompteng/lab
