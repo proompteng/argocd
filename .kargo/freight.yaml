@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: buzz
+applications:
+- buzz
+freight:
+  collectionID: 4852abda15ff50f1e39de2dcaef0cfd05e9509c9
+  items:
+  - origin:
+      kind: Warehouse
+      name: buzz
+    name: 5937ece01aac2f3a18274835b0e1a599cc6ee5cc
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: a391a84997af5bda4bc55a4294bafe844e016357
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/buzz
+      digest: sha256:382be2f029d2a7acc5c1da4b01bb7daaf8d3ef45c530e15c881b7cd6558ce55b
+      tag: kargo-sha-a391a84997af5bda4bc55a4294bafe844e016357
+      annotations:
+        org.opencontainers.image.revision: a391a84997af5bda4bc55a4294bafe844e016357
+        org.opencontainers.image.source: https://github.com/proompteng/lab

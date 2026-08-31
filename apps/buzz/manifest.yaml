@@ -1,0 +1,1105 @@
+---
+apiVersion: v1
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    discovery.kubernetes "buzz_endpoints" {
+      role = "endpoints"
+
+      namespaces {
+        names = ["buzz"]
+      }
+    }
+
+    discovery.relabel "buzz_relay" {
+      targets = discovery.kubernetes.buzz_endpoints.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_service_name"]
+        regex         = "buzz"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_endpoint_port_name"]
+        regex         = "metrics"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_service_name"]
+        target_label  = "service"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+    }
+
+    discovery.relabel "buzz_redis" {
+      targets = discovery.kubernetes.buzz_endpoints.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_service_name"]
+        regex         = "buzz-redis-metrics"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_endpoint_port_name"]
+        regex         = "redis-exporter"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_service_name"]
+        target_label  = "service"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+    }
+
+    prometheus.remote_write "mimir" {
+      endpoint {
+        url = "http://observability-mimir-gateway.observability.svc.cluster.local/api/v1/push"
+      }
+    }
+
+    prometheus.scrape "buzz_relay" {
+      job_name        = "buzz-relay"
+      targets         = discovery.relabel.buzz_relay.output
+      scrape_interval = "30s"
+      scrape_timeout  = "10s"
+      forward_to      = [prometheus.remote_write.mimir.receiver]
+    }
+
+    prometheus.scrape "buzz_redis" {
+      job_name        = "buzz-redis"
+      targets         = discovery.relabel.buzz_redis.output
+      scrape_interval = "30s"
+      scrape_timeout  = "10s"
+      forward_to      = [prometheus.remote_write.mimir.receiver]
+    }
+kind: ConfigMap
+metadata:
+  name: buzz-alloy
+  namespace: buzz
+---
+apiVersion: v1
+data:
+  redis-additional.conf: |
+    appendonly yes
+    appendfsync everysec
+    # The operator exports REDIS_MAX_MEMORY but the pinned Redis image does
+    # not translate it into redis.conf. Keep this equal to 75% of the 512 MiB
+    # container limit so Redis has headroom for allocator and AOF overhead.
+    maxmemory 384mb
+    maxmemory-policy allkeys-lru
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-8"
+  name: buzz-redis-config
+  namespace: buzz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: buzz
+    app.kubernetes.io/part-of: buzz
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: buzz-0.1.7
+  name: buzz
+  namespace: buzz
+spec:
+  ports:
+  - name: app
+    port: 3000
+    protocol: TCP
+    targetPort: app
+  - name: health
+    port: 8080
+    protocol: TCP
+    targetPort: health
+  - name: metrics
+    port: 9102
+    protocol: TCP
+    targetPort: metrics
+  selector:
+    app.kubernetes.io/component: relay
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/name: buzz
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: buzz
+    app.kubernetes.io/part-of: buzz
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: buzz-0.1.7
+  name: buzz
+  namespace: buzz
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: buzz-alloy
+  namespace: buzz
+---
+apiVersion: v1
+automountServiceAccountToken: true
+kind: ServiceAccount
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-12"
+  name: buzz-secret-reader
+  namespace: buzz
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+  labels:
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: buzz
+    app.kubernetes.io/part-of: buzz
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: buzz-0.1.7
+  name: buzz
+  namespace: buzz
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: relay
+      app.kubernetes.io/instance: buzz
+      app.kubernetes.io/name: buzz
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/secret: 75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070
+      labels:
+        app.kubernetes.io/component: relay
+        app.kubernetes.io/instance: buzz
+        app.kubernetes.io/name: buzz
+    spec:
+      containers:
+      - env:
+        - name: BUZZ_BIND_ADDR
+          value: 0.0.0.0:3000
+        - name: BUZZ_HEALTH_PORT
+          value: '8080'
+        - name: BUZZ_METRICS_PORT
+          value: '9102'
+        - name: RELAY_URL
+          value: wss://buzz.ide-newton.ts.net
+        - name: BUZZ_MEDIA_BASE_URL
+          value: https://buzz.ide-newton.ts.net/media
+        - name: BUZZ_MAX_CONNECTIONS
+          value: '10000'
+        - name: BUZZ_MAX_CONCURRENT_HANDLERS
+          value: '1024'
+        - name: BUZZ_SEND_BUFFER
+          value: '1000'
+        - name: BUZZ_REQUIRE_AUTH_TOKEN
+          value: 'true'
+        - name: BUZZ_REQUIRE_RELAY_MEMBERSHIP
+          value: 'true'
+        - name: BUZZ_REQUIRE_MEDIA_GET_AUTH
+          value: 'false'
+        - name: BUZZ_ALLOW_NIP_OA_AUTH
+          value: 'true'
+        - name: BUZZ_PUBKEY_ALLOWLIST
+          value: 'false'
+        - name: RELAY_OWNER_PUBKEY
+          value: a2b371b652d7350ca7e6974a15bf7b7a6da5955d8096bf59ee5d1152ec590ca3
+        - name: BUZZ_AUTO_MIGRATE
+          value: 'true'
+        - name: BUZZ_GIT_REPO_PATH
+          value: "/var/lib/buzz/git"
+        - name: BUZZ_GIT_MAX_PACK_BYTES
+          value: '5.24288e+08'
+        - name: BUZZ_GIT_PACK_CACHE_PATH
+          value: "/var/cache/buzz/git-packs"
+        - name: BUZZ_GIT_PACK_CACHE_MAX_BYTES
+          value: '5.36870912e+09'
+        - name: BUZZ_GIT_PACK_CACHE_MAX_CONCURRENT_POPULATIONS
+          value: '2'
+        - name: BUZZ_GIT_MAX_REPOS_PER_PUBKEY
+          value: '100'
+        - name: BUZZ_GIT_MAX_CONCURRENT_OPS
+          value: '20'
+        - name: BUZZ_S3_ENDPOINT
+          value: http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80
+        - name: BUZZ_S3_BUCKET
+          value: buzz-objects
+        - name: BUZZ_RELAY_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: BUZZ_RELAY_PRIVATE_KEY
+              name: buzz-secrets
+              optional: true
+        - name: BUZZ_GIT_HOOK_HMAC_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: BUZZ_GIT_HOOK_HMAC_SECRET
+              name: buzz-secrets
+              optional: true
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: DATABASE_URL
+              name: buzz-secrets
+        - name: READ_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: READ_DATABASE_URL
+              name: buzz-secrets
+              optional: true
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              key: REDIS_URL
+              name: buzz-secrets
+              optional: false
+        - name: BUZZ_S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: BUZZ_S3_ACCESS_KEY
+              name: buzz-secrets
+              optional: true
+        - name: BUZZ_S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: BUZZ_S3_SECRET_KEY
+              name: buzz-secrets
+              optional: true
+        - name: BUZZ_HUDDLE_AUDIO_AVAILABLE
+          value: 'false'
+        - name: BUZZ_GIT_S3_COMPATIBILITY
+          value: ceph-rgw
+        - name: BUZZ_ADMIN_HOST
+          value: buzz-admin.ide-newton.ts.net
+        - name: BUZZ_ADMIN_WEB_DIR
+          value: "/srv/buzz/admin-web"
+        image: registry.ide-newton.ts.net/lab/buzz:kargo-sha-a391a84997af5bda4bc55a4294bafe844e016357@sha256:382be2f029d2a7acc5c1da4b01bb7daaf8d3ef45c530e15c881b7cd6558ce55b
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/_liveness"
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        name: relay
+        ports:
+        - containerPort: 3000
+          name: app
+          protocol: TCP
+        - containerPort: 8080
+          name: health
+          protocol: TCP
+        - containerPort: 9102
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/_readiness"
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: "/_liveness"
+            port: health
+          periodSeconds: 2
+        volumeMounts:
+        - mountPath: "/var/lib/buzz/git"
+          name: git-repos
+        - mountPath: "/var/cache/buzz/git-packs"
+          name: git-pack-cache
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: buzz
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: relay
+            app.kubernetes.io/instance: buzz
+            app.kubernetes.io/name: buzz
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+      volumes:
+      - emptyDir:
+          sizeLimit: 10Gi
+        name: git-repos
+      - emptyDir:
+          sizeLimit: 7Gi
+        name: git-pack-cache
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: buzz-alloy
+    app.kubernetes.io/part-of: buzz
+  name: buzz-alloy
+  namespace: buzz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: buzz-alloy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: buzz-alloy
+        app.kubernetes.io/part-of: buzz
+    spec:
+      containers:
+      - args:
+        - run
+        - "--server.http.listen-addr=0.0.0.0:12345"
+        - "/etc/alloy/config.alloy"
+        image: grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: "/-/ready"
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: alloy
+        ports:
+        - containerPort: 12345
+          name: http
+        readinessProbe:
+          httpGet:
+            path: "/-/ready"
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: "/etc/alloy"
+          name: config
+          readOnly: true
+        - mountPath: "/var/lib/alloy"
+          name: data
+        workingDir: "/var/lib/alloy"
+      securityContext:
+        fsGroup: 473
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 473
+        runAsNonRoot: true
+        runAsUser: 473
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: buzz-alloy
+      volumes:
+      - configMap:
+          items:
+          - key: config.alloy
+            path: config.alloy
+          name: buzz-alloy
+        name: config
+      - emptyDir: {}
+        name: data
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false,SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "-8"
+  labels:
+    app.kubernetes.io/name: buzz-db
+    app.kubernetes.io/part-of: buzz
+  name: buzz-db
+  namespace: buzz
+spec:
+  configuration:
+    data:
+      compression: snappy
+      jobs: 1
+    destinationPath: s3://cnpg-buzz/
+    endpointURL: http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80
+    s3Credentials:
+      accessKeyId:
+        key: AWS_ACCESS_KEY_ID
+        name: cnpg-buzz-db
+      secretAccessKey:
+        key: AWS_SECRET_ACCESS_KEY
+        name: cnpg-buzz-db
+    wal:
+      compression: snappy
+      maxParallel: 2
+  instanceSidecarConfiguration:
+    logLevel: info
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    retentionPolicyIntervalSeconds: 1800
+  retentionPolicy: 14d
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-9"
+  name: buzz-redis-auth
+  namespace: buzz
+spec:
+  data:
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-runtime/REDIS_PASSWORD
+      metadataPolicy: None
+      nullBytePolicy: Fail
+    secretKey: redis_password
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-infra
+  target:
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    name: buzz-redis-auth
+    template:
+      data:
+        password: "{{ .redis_password }}"
+      engineVersion: v2
+      type: Opaque
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-6"
+  name: buzz-secrets
+  namespace: buzz
+spec:
+  data:
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-runtime/RELAY_PRIVATE_KEY
+      metadataPolicy: None
+      nullBytePolicy: Fail
+    secretKey: relay_private_key
+    sourceRef:
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword-infra
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-runtime/GIT_HOOK_HMAC_SECRET
+      metadataPolicy: None
+      nullBytePolicy: Fail
+    secretKey: git_hook_hmac_secret
+    sourceRef:
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword-infra
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-runtime/REDIS_PASSWORD
+      metadataPolicy: None
+      nullBytePolicy: Fail
+    secretKey: redis_password
+    sourceRef:
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword-infra
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-db-app
+      metadataPolicy: None
+      nullBytePolicy: Fail
+      property: uri
+    secretKey: database_uri
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-objects
+      metadataPolicy: None
+      nullBytePolicy: Fail
+      property: AWS_ACCESS_KEY_ID
+    secretKey: s3_access_key
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: buzz-objects
+      metadataPolicy: None
+      nullBytePolicy: Fail
+      property: AWS_SECRET_ACCESS_KEY
+    secretKey: s3_secret_key
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: buzz-kubernetes
+  target:
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    name: buzz-secrets
+    template:
+      data:
+        BUZZ_GIT_HOOK_HMAC_SECRET: "{{ .git_hook_hmac_secret }}"
+        BUZZ_RELAY_PRIVATE_KEY: "{{ .relay_private_key }}"
+        BUZZ_S3_ACCESS_KEY: "{{ .s3_access_key }}"
+        BUZZ_S3_SECRET_KEY: "{{ .s3_secret_key }}"
+        DATABASE_URL: "{{ .database_uri }}?sslmode=require"
+        REDIS_URL: redis://:{{ .redis_password }}@buzz-redis:6379
+      engineVersion: v2
+      type: Opaque
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-11"
+  name: buzz-kubernetes
+  namespace: buzz
+spec:
+  provider:
+    kubernetes:
+      auth:
+        serviceAccount:
+          name: buzz-secret-reader
+      remoteNamespace: buzz
+      server:
+        caProvider:
+          key: ca.crt
+          name: kube-root-ca.crt
+          type: ConfigMap
+        url: https://kubernetes.default.svc
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    tailscale.com/tags: tag:k8s
+  labels:
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: buzz
+    app.kubernetes.io/part-of: buzz
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: buzz-0.1.7
+  name: buzz
+  namespace: buzz
+spec:
+  ingressClassName: tailscale
+  rules:
+  - host: buzz.ide-newton.ts.net
+    http:
+      paths:
+      - backend:
+          service:
+            name: buzz
+            port:
+              number: 3000
+        path: "/"
+        pathType: Prefix
+  tls:
+  - hosts:
+    - buzz.ide-newton.ts.net
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    tailscale.com/tags: tag:k8s
+  name: buzz-admin
+  namespace: buzz
+spec:
+  ingressClassName: tailscale
+  rules:
+  - host: buzz-admin.ide-newton.ts.net
+    http:
+      paths:
+      - backend:
+          service:
+            name: buzz
+            port:
+              number: 3000
+        path: "/"
+        pathType: Prefix
+  tls:
+  - hosts:
+    - buzz-admin.ide-newton.ts.net
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-buzz-namespace
+  namespace: buzz
+spec:
+  ingress:
+  - from:
+    - podSelector: {}
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-database-operators
+  namespace: buzz
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cloudnative-pg
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: redis-operator
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kubernetes-api-cnpg-status
+  namespace: buzz
+spec:
+  ingress:
+  - from:
+    - ipBlock:
+        cidr: 10.244.0.0/31
+    - ipBlock:
+        cidr: 10.244.3.0/31
+    - ipBlock:
+        cidr: 10.244.5.0/31
+    ports:
+    - port: 8000
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: buzz-db
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-observability-alloy
+  namespace: buzz
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: observability-cluster-metrics-alloy
+    ports:
+    - port: 9187
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: buzz-db
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tailscale-relay
+  namespace: buzz
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tailscale
+      podSelector:
+        matchLabels:
+          tailscale.com/parent-resource: buzz
+          tailscale.com/parent-resource-ns: buzz
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tailscale
+      podSelector:
+        matchLabels:
+          tailscale.com/parent-resource: buzz-admin
+          tailscale.com/parent-resource-ns: buzz
+    ports:
+    - port: 3000
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: relay
+      app.kubernetes.io/instance: buzz
+      app.kubernetes.io/name: buzz
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: buzz
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-10"
+  labels:
+    app.kubernetes.io/component: object-storage
+    app.kubernetes.io/name: buzz
+  name: buzz-objects
+  namespace: buzz
+spec:
+  bucketName: buzz-objects
+  storageClassName: rook-ceph-bucket
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-10"
+  labels:
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/name: buzz-db
+  name: cnpg-buzz-db
+  namespace: buzz
+spec:
+  bucketName: cnpg-buzz
+  storageClassName: rook-ceph-bucket
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app.kubernetes.io/instance: buzz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: buzz
+    app.kubernetes.io/part-of: buzz
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: buzz-0.1.7
+  name: buzz
+  namespace: buzz
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: relay
+      app.kubernetes.io/instance: buzz
+      app.kubernetes.io/name: buzz
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-7"
+  labels:
+    app.kubernetes.io/name: buzz-db
+    app.kubernetes.io/part-of: buzz
+  name: buzz-db
+  namespace: buzz
+spec:
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  bootstrap:
+    initdb:
+      dataChecksums: true
+      database: buzz
+      encoding: UTF8
+      owner: buzz
+  description: Buzz relay state
+  enablePDB: true
+  enableSuperuserAccess: false
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.7-system-trixie@sha256:08775f8bdeb112878b8f2ef63578c47959ee332fc9e076d5d6735a710c4500e2
+  imagePullPolicy: IfNotPresent
+  inheritedMetadata:
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  instances: 3
+  maxSyncReplicas: 1
+  minSyncReplicas: 1
+  plugins:
+  - enabled: true
+    isWALArchiver: true
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: buzz-db
+      serverName: buzz-db-live
+  postgresql:
+    parameters:
+      password_encryption: scram-sha-256
+      ssl_min_protocol_version: TLSv1.3
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  resources:
+    limits:
+      cpu: '2'
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  storage:
+    resizeInUseVolumes: true
+    size: 20Gi
+    storageClass: rook-ceph-block
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  labels:
+    app.kubernetes.io/name: buzz-db
+    app.kubernetes.io/part-of: buzz
+  name: buzz-db-daily
+  namespace: buzz
+spec:
+  backupOwnerReference: cluster
+  cluster:
+    name: buzz-db
+  immediate: true
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  schedule: 0 0 10 * * *
+  target: prefer-standby
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: buzz-alloy
+  namespace: buzz
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - endpoints
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-12"
+  name: buzz-secret-reader
+  namespace: buzz
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - selfsubjectrulesreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: buzz-alloy
+  namespace: buzz
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buzz-alloy
+subjects:
+- kind: ServiceAccount
+  name: buzz-alloy
+  namespace: buzz
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-12"
+  name: buzz-secret-reader
+  namespace: buzz
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buzz-secret-reader
+subjects:
+- kind: ServiceAccount
+  name: buzz-secret-reader
+  namespace: buzz
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: Redis
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-7"
+  labels:
+    app.kubernetes.io/name: buzz-redis
+    app.kubernetes.io/part-of: buzz
+  name: buzz-redis
+  namespace: buzz
+spec:
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.4.8@sha256:b3bbb254bfe964f4333c581e1461e738853ec2351aa3a620a5fff45b94fba2b3
+    imagePullPolicy: IfNotPresent
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    redisSecret:
+      key: password
+      name: buzz-redis-auth
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  redisConfig:
+    additionalRedisConfig: buzz-redis-config
+    maxMemoryPercentOfLimit: 75
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.78.0@sha256:8edf2c77220a6e8fc290d13a4ec78bedcbdf08b8bf03a64119f448131f733d3f
+    imagePullPolicy: IfNotPresent
+    port: 9121
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  storage:
+    keepAfterDelete: true
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: rook-ceph-block
