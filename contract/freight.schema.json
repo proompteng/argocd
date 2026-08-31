@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/proompteng/argocd/blob/main/contract/freight.schema.json",
+  "title": "Kargo generated Freight provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "stage", "applications", "freight"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "stage": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$" },
+    "applications": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$" }
+    },
+    "freight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collectionID", "items"],
+      "properties": {
+        "collectionID": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/item" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repoURL", "branch", "id"],
+      "properties": {
+        "repoURL": { "type": "string", "pattern": "^https://" },
+        "branch": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repoURL", "digest"],
+      "properties": {
+        "repoURL": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "tag": { "type": "string", "minLength": 1 },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "name", "commits", "images"],
+      "properties": {
+        "origin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "const": "Warehouse" },
+            "name": { "type": "string", "minLength": 1 }
+          }
+        },
+        "name": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "commits": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/commit" } },
+        "images": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/image" } }
+      }
+    }
+  }
+}

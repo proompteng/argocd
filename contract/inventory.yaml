@@ -1,0 +1,51 @@
+apiVersion: delivery.proompteng.ai/v1alpha1
+kind: DeliveryInventory
+metadata:
+  name: lab
+spec:
+  sourceRepository: https://github.com/proompteng/lab.git
+  outputRepository: https://github.com/proompteng/argocd.git
+  branchPrefix: kargo/
+  provenancePath: .kargo/freight.yaml
+  manifestPathTemplate: apps/%{application}/manifest.yaml
+  expectedStageCount: 19
+  expectedApplicationCount: 20
+  stages:
+    - name: agents
+      applications: [agents]
+    - name: analysis
+      applications: [analysis]
+    - name: app
+      applications: [app]
+    - name: arc-runner
+      applications: [arc]
+    - name: attic
+      applications: [attic]
+    - name: bilig
+      applications: [bilig]
+    - name: bumba
+      applications: [bumba]
+    - name: buzz
+      applications: [buzz]
+    - name: docs
+      applications: [docs]
+    - name: froussard
+      applications: [froussard]
+    - name: headlamp
+      applications: [headlamp]
+    - name: hermes-toolchain
+      applications: [hermes]
+    - name: jangar
+      applications: [jangar]
+    - name: oirat
+      applications: [oirat]
+    - name: proompteng
+      applications: [proompteng]
+    - name: symphony
+      applications: [symphony, symphony-jangar]
+    - name: synthesis
+      applications: [synthesis]
+    - name: tengri
+      applications: [tengri]
+    - name: torghut
+      applications: [torghut]
