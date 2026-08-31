@@ -28,6 +28,6 @@ generated branch commit, Argo CD sync/health, and Kargo verification.
 Do not create SHA-bump pull requests, release branches, deployment pull
 requests, manual Argo syncs, direct Kubernetes applies, or alternate writers.
 
-`main` changes must keep `contract/inventory.yaml`, the provenance schema, the
-validators, and the repository rulesets consistent. Generated output must pass
+`main` changes must keep `contract/inventory.yaml`, the provenance validator,
+and the repository rulesets consistent. Generated output must pass
 `scripts/validate_output.rb` before it is accepted as a migration seed.
