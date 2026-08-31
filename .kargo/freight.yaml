@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: app
+applications:
+- app
+freight:
+  collectionID: fe247ccbb1547f13dc8457e4242bf4b63f2ffd6f
+  items:
+  - origin:
+      kind: Warehouse
+      name: app
+    name: 73fcf01b2741eafea3ae06e0925d7142ba662cdf
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/app
+      digest: sha256:2ff35a9e4e2d442da1d2585d6603c4a862e93aaa6ba36caeef0df05b786f70f3
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
