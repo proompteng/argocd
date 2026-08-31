@@ -1,0 +1,412 @@
+---
+apiVersion: v1
+data:
+  server.toml: |
+    listen = "[::]:8080"
+    allowed-hosts = [
+      "attic.attic.svc.cluster.local",
+      "attic.ide-newton.ts.net"
+    ]
+    api-endpoint = "https://attic.ide-newton.ts.net/"
+    substituter-endpoint = "https://attic.ide-newton.ts.net/"
+    soft-delete-caches = true
+    require-proof-of-possession = true
+
+    [database]
+    heartbeat = true
+
+    [storage]
+    type = "s3"
+    region = "us-east-1"
+    bucket = "attic-cache"
+    endpoint = "http://rook-ceph-rgw-objectstore.rook-ceph.svc.cluster.local:80"
+
+    [chunking]
+    nar-size-threshold = 65536
+    min-size = 16384
+    avg-size = 65536
+    max-size = 262144
+
+    [compression]
+    type = "zstd"
+
+    [garbage-collection]
+    interval = "0s"
+    default-retention-period = "6 months"
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  name: attic-config
+  namespace: attic
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: nix-cache
+    app.kubernetes.io/name: attic
+  name: attic
+  namespace: attic
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: attic
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: nix-cache
+    app.kubernetes.io/name: attic
+  name: attic
+  namespace: attic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attic
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: nix-cache
+        app.kubernetes.io/name: attic
+    spec:
+      containers:
+      - args:
+        - "--config"
+        - "/etc/attic/server.toml"
+        - "--mode"
+        - api-server
+        command:
+        - atticd
+        env:
+        - name: RUST_LOG
+          value: info
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_EC2_METADATA_DISABLED
+          value: 'true'
+        - name: ATTIC_SERVER_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: attic-db-app
+        - name: ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64
+          valueFrom:
+            secretKeyRef:
+              key: token-rs256-secret-base64
+              name: attic-secrets
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: AWS_ACCESS_KEY_ID
+              name: attic-cache
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: AWS_SECRET_ACCESS_KEY
+              name: attic-cache
+        image: registry.ide-newton.ts.net/lab/attic@sha256:c2bcd67a587787bcf8ecdb346306b5075c3f4bb11804a83cb5f9305538c03aa1
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            httpHeaders:
+            - name: Host
+              value: attic.attic.svc.cluster.local
+            path: "/"
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        name: attic
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            httpHeaders:
+            - name: Host
+              value: attic.attic.svc.cluster.local
+            path: "/"
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+        volumeMounts:
+        - mountPath: "/etc/attic"
+          name: attic-config
+          readOnly: true
+        - mountPath: "/tmp"
+          name: tmp
+      initContainers:
+      - args:
+        - "--config"
+        - "/etc/attic/server.toml"
+        - "--mode"
+        - db-migrations
+        command:
+        - atticd
+        env:
+        - name: RUST_LOG
+          value: info
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_EC2_METADATA_DISABLED
+          value: 'true'
+        - name: ATTIC_SERVER_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: uri
+              name: attic-db-app
+        - name: ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64
+          valueFrom:
+            secretKeyRef:
+              key: token-rs256-secret-base64
+              name: attic-secrets
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: AWS_ACCESS_KEY_ID
+              name: attic-cache
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: AWS_SECRET_ACCESS_KEY
+              name: attic-cache
+        image: registry.ide-newton.ts.net/lab/attic@sha256:c2bcd67a587787bcf8ecdb346306b5075c3f4bb11804a83cb5f9305538c03aa1
+        imagePullPolicy: Always
+        name: db-migrations
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+        volumeMounts:
+        - mountPath: "/etc/attic"
+          name: attic-config
+          readOnly: true
+        - mountPath: "/tmp"
+          name: tmp
+      securityContext:
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - configMap:
+          name: attic-config
+        name: attic-config
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/component: garbage-collector
+    app.kubernetes.io/name: attic
+  name: attic-gc
+  namespace: attic
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: garbage-collector
+            app.kubernetes.io/name: attic
+        spec:
+          containers:
+          - args:
+            - "--config"
+            - "/etc/attic/server.toml"
+            - "--mode"
+            - garbage-collector-once
+            command:
+            - atticd
+            env:
+            - name: RUST_LOG
+              value: info
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: AWS_EC2_METADATA_DISABLED
+              value: 'true'
+            - name: ATTIC_SERVER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: attic-db-app
+            - name: ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64
+              valueFrom:
+                secretKeyRef:
+                  key: token-rs256-secret-base64
+                  name: attic-secrets
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: attic-cache
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: attic-cache
+            image: registry.ide-newton.ts.net/lab/attic@sha256:c2bcd67a587787bcf8ecdb346306b5075c3f4bb11804a83cb5f9305538c03aa1
+            imagePullPolicy: Always
+            name: attic-gc
+            resources:
+              limits:
+                cpu: '1'
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsGroup: 65532
+              runAsNonRoot: true
+              runAsUser: 65532
+            volumeMounts:
+            - mountPath: "/etc/attic"
+              name: attic-config
+              readOnly: true
+            - mountPath: "/tmp"
+              name: tmp
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: attic-config
+            name: attic-config
+          - emptyDir: {}
+            name: tmp
+  schedule: 17 9 * * *
+  successfulJobsHistoryLimit: 2
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+  name: attic-secrets
+  namespace: attic
+spec:
+  data:
+  - remoteRef:
+      conversionStrategy: Default
+      decodingStrategy: None
+      key: attic-cache
+      metadataPolicy: None
+      nullBytePolicy: Ignore
+      property: token-rs256-secret-base64
+    secretKey: token-rs256-secret-base64
+  refreshInterval: 0s
+  refreshPolicy: CreatedOnce
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-infra
+  target:
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    name: attic-secrets
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    tailscale.com/tags: tag:k8s
+  name: attic-tailscale
+  namespace: attic
+spec:
+  ingressClassName: tailscale
+  rules:
+  - host: attic.ide-newton.ts.net
+    http:
+      paths:
+      - backend:
+          service:
+            name: attic
+            port:
+              number: 80
+        path: "/"
+        pathType: Prefix
+  tls:
+  - hosts:
+    - attic.ide-newton.ts.net
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: attic-cache
+  namespace: attic
+spec:
+  bucketName: attic-cache
+  storageClassName: rook-ceph-bucket
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  name: attic-db
+  namespace: attic
+spec:
+  bootstrap:
+    initdb:
+      dataChecksums: true
+      database: attic
+      encoding: UTF8
+      owner: attic
+  inheritedMetadata:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: pgadmin
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: 'true'
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: pgadmin
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 20Gi
+    storageClass: rook-ceph-block
