@@ -1,0 +1,238 @@
+---
+apiVersion: v1
+data:
+  config.river: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    discovery.kubernetes "oirat" {
+      role = "pod"
+
+      namespaces {
+        names = ["oirat"]
+      }
+
+      selectors {
+        role  = "pod"
+        label = "app.kubernetes.io/name=oirat"
+      }
+    }
+
+    loki.source.kubernetes "oirat" {
+      targets    = discovery.kubernetes.oirat.targets
+      forward_to = [loki.process.oirat.receiver]
+    }
+
+    loki.process "oirat" {
+      stage.labels {
+        values = {
+          namespace = "{{ .Labels.namespace }}",
+          pod       = "{{ .Labels.pod }}",
+          container = "{{ .Labels.container }}",
+        }
+      }
+
+      stage.static_labels {
+        values = {
+          app = "oirat",
+          job = "oirat",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://observability-loki-loki-distributed-gateway.observability.svc.cluster.local/loki/api/v1/push"
+      }
+    }
+kind: ConfigMap
+metadata:
+  name: oirat-alloy
+  namespace: oirat
+---
+apiVersion: v1
+data:
+  DISCORD_ALLOWED_CHANNEL_IDS: ''
+  DISCORD_ALLOWED_GUILD_IDS: ''
+  DISCORD_HISTORY_LIMIT: '24'
+  DISCORD_THREAD_AUTO_ARCHIVE_MINUTES: '1440'
+  DISCORD_THREAD_NAME_PREFIX: Jangar
+  JANGAR_BASE_URL: http://jangar.jangar.svc.cluster.local
+  JANGAR_SYSTEM_PROMPT: You are a helpful assistant in Discord. Keep replies concise,
+    be direct, and avoid unnecessary pings.
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: oirat
+    app.kubernetes.io/part-of: lab
+  name: oirat-config
+  namespace: oirat
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oirat-alloy
+  namespace: oirat
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: oirat
+    app.kubernetes.io/part-of: lab
+  name: oirat
+  namespace: oirat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oirat
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-05-05T11:10:50Z'
+      labels:
+        app.kubernetes.io/name: oirat
+        app.kubernetes.io/part-of: lab
+    spec:
+      containers:
+      - env:
+        - name: DISCORD_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: bot-token
+              name: oirat-discord
+        - name: JANGAR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: oirat-jangar
+              optional: true
+        envFrom:
+        - configMapRef:
+            name: oirat-config
+        image: registry.ide-newton.ts.net/lab/oirat@sha256:bc4e172780f6f0b3c39559ff0384f0713b7280ff4bde279dda6d798e85656f19
+        imagePullPolicy: Always
+        name: oirat
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      nodeSelector:
+        kubernetes.io/arch: arm64
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/name: oirat-alloy
+  name: oirat-alloy
+  namespace: oirat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oirat-alloy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: logging
+        app.kubernetes.io/name: oirat-alloy
+    spec:
+      containers:
+      - args:
+        - run
+        - "/etc/alloy/config.river"
+        image: grafana/alloy:v1.18.1
+        imagePullPolicy: IfNotPresent
+        name: alloy
+        ports:
+        - containerPort: 12345
+          name: http-metrics
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsGroup: 65534
+          runAsNonRoot: true
+          runAsUser: 65534
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: "/etc/alloy"
+          name: config
+        - mountPath: "/var/lib/alloy"
+          name: data
+        workingDir: "/var/lib/alloy"
+      securityContext:
+        fsGroup: 65534
+      serviceAccountName: oirat-alloy
+      volumes:
+      - configMap:
+          items:
+          - key: config.river
+            path: config.river
+          name: oirat-alloy
+        name: config
+      - emptyDir: {}
+        name: data
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: oirat-discord
+  namespace: oirat
+spec:
+  encryptedData:
+    bot-token: AgC8O6+tWp5HOxn/WXEZDARxFOrs3uCTeEujZDwutBLYbClVgvgZsNOKLOpkkTRiw+jZwuO6vh7TgWzCb1+5XEr5/NERcbEAQOfhr2lEy4tZf0IZcADvrAnWn699s2Q7A+3RzGRt2qZ2G/f9rEj+zkUuuvDJercJeFU538T6TOK0Jjx2tcXK4P51b3mvRFiRlDvVZOYqe2K7zh6YRZQuC+sM056HYqPedxsu+/LlfmM3IV9+h88UlEFLNDocl/YuQfsIUPxkp75CHB2EAUa0FEKqenoqZ9bxgEf+vx9ujzFoWU+H8CLOTlbcAskhHzYW/OpWl93/KMnuHF4c6K1CEu426EoXJiFecy+a4j4BREQJE9wBlVWcyBBnvKKmpYfAyGLl6FCzTMZGeYVeprFPO8Lw32/u57Zb4Rdlw5eWl2odpn6s+0C9zbzozz95GUXj/zw6hgjAq3Uc92taRFHDXJPU+cGYu+HXgQB9GycIPJIo3nsc+S/ulMN+Z5ObwJmoFRbVgr00kj1i3YxknO9BlaFNLOeqAcymFPBsflLbfo/gwkndE975jDmagz4Go/N5UfGIg90JSkStRIQuZbIpM+omzPenaBUs8ZIWeXxBNDFJAEKcHXguh4nHRXTTtOJdlYB5hnUcKmVRYHyPY/WAyAzwc+1pfAxRFhzOokT1ia4w0HvzgKEBwjlaKn45Malda0NIOPDC1gHUPGvintVINizwQfK70IFZdYFRZqpPhuegkl0jhMlx938DmnFL1Fpzqz79FO8EQc5dAZNFLhvKv0S8E0bqgazDl+c=
+  template:
+    metadata:
+      name: oirat-discord
+      namespace: oirat
+    type: Opaque
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oirat-alloy
+  namespace: oirat
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oirat-alloy
+  namespace: oirat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: oirat-alloy
+subjects:
+- kind: ServiceAccount
+  name: oirat-alloy
+  namespace: oirat

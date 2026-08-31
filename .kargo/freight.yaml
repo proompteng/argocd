@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: oirat
+applications:
+- oirat
+freight:
+  collectionID: 9bf41c542d1b9fd12726bd1f8955753838e51dcc
+  items:
+  - origin:
+      kind: Warehouse
+      name: oirat
+    name: 1b99659d98fd6b49366ce8de252febd03f47e5df
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: 4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/oirat
+      digest: sha256:bc4e172780f6f0b3c39559ff0384f0713b7280ff4bde279dda6d798e85656f19
+      tag: kargo-sha-4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+      annotations:
+        org.opencontainers.image.revision: 4caf50726639d6b80e7ccecb0f9639fd34a3bfad
+        org.opencontainers.image.source: https://github.com/proompteng/lab
