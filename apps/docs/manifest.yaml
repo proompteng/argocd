@@ -1,0 +1,62 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docs
+  namespace: docs
+spec:
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    app: docs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docs
+  namespace: docs
+spec:
+  selector:
+    matchLabels:
+      app: docs
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: docs
+    spec:
+      containers:
+      - image: registry.ide-newton.ts.net/lab/docs@sha256:4076caa2ee9684478a2acf0d421dfa7c7295b5e0da36a4407d273ffc87fe2b54
+        name: docs
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            cpu: '1'
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+      nodeSelector:
+        kubernetes.io/arch: arm64
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: docs
+  namespace: docs
+spec:
+  entryPoints:
+  - web
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`docs.proompteng.ai`)
+    services:
+    - name: docs
+      port: 80

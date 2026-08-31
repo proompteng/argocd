@@ -1,0 +1,23 @@
+---
+schemaVersion: 1
+stage: docs
+applications:
+- docs
+freight:
+  collectionID: 3ad4067654186b43326683b819602e67a5116599
+  items:
+  - origin:
+      kind: Warehouse
+      name: docs
+    name: 2fdfd3e251b6967bfc36ce14c35af5a9d535b713
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: bbbaa168c46e6e167a5775d0f516789b13dc689d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/docs
+      digest: sha256:4076caa2ee9684478a2acf0d421dfa7c7295b5e0da36a4407d273ffc87fe2b54
+      tag: kargo-sha-bbbaa168c46e6e167a5775d0f516789b13dc689d
+      annotations:
+        org.opencontainers.image.revision: bbbaa168c46e6e167a5775d0f516789b13dc689d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
