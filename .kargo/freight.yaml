@@ -1,0 +1,29 @@
+---
+schemaVersion: 1
+stage: tengri
+applications:
+- tengri
+freight:
+  collectionID: b072787f9aa5b6feabf9d898a41ca7ede44e1ff4
+  items:
+  - origin:
+      kind: Warehouse
+      name: tengri
+    name: 817b9a33ec9429dfa3c6e54d474fc4ec872ed904
+    commits:
+    - repoURL: https://github.com/proompteng/lab.git
+      branch: main
+      id: d18d5cd11387f997cf39b1420872e489ecebf03d
+    images:
+    - repoURL: registry.ide-newton.ts.net/lab/tengri
+      digest: sha256:fed0617eaaa556a500d3b3d8831f84b1ec822ef47b3e82d36e9323e4e808b1e2
+      tag: kargo-sha-d18d5cd11387f997cf39b1420872e489ecebf03d
+      annotations:
+        org.opencontainers.image.revision: d18d5cd11387f997cf39b1420872e489ecebf03d
+        org.opencontainers.image.source: https://github.com/proompteng/lab
+    - repoURL: registry.ide-newton.ts.net/lab/nanoagent
+      digest: sha256:eca441df2babc69c6d52633905a2e796b2647d4f9a0f1e9efa98cec9958b7236
+      tag: kargo-sha-d18d5cd11387f997cf39b1420872e489ecebf03d
+      annotations:
+        org.opencontainers.image.revision: d18d5cd11387f997cf39b1420872e489ecebf03d
+        org.opencontainers.image.source: https://github.com/proompteng/lab

@@ -1,0 +1,724 @@
+---
+apiVersion: v1
+data: {}
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/name: tengri
+    app.kubernetes.io/part-of: tengri
+  name: tengri-auth-nonces
+  namespace: tengri
+---
+apiVersion: v1
+data:
+  NANOAGENT_IMAGE: registry.ide-newton.ts.net/lab/nanoagent@sha256:eca441df2babc69c6d52633905a2e796b2647d4f9a0f1e9efa98cec9958b7236
+kind: ConfigMap
+metadata:
+  name: tengri-release-5kf5fdkb76
+  namespace: tengri
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tengri
+  namespace: tengri
+spec:
+  hard:
+    count/microvms.runtime.proompteng.ai: '6'
+    limits.cpu: '15'
+    limits.memory: 26Gi
+    persistentvolumeclaims: '6'
+    pods: '8'
+    requests.cpu: '14'
+    requests.memory: 26Gi
+    requests.storage: 96Gi
+    secrets: '8'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: tengri
+  name: tengri-gateway
+  namespace: tengri
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: gateway
+  selector:
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/name: tengri
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: tengri
+  name: tengri-grpc
+  namespace: tengri
+spec:
+  ports:
+  - name: grpc
+    port: 50051
+    protocol: TCP
+    targetPort: grpc
+  selector:
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/name: tengri
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: preview
+    app.kubernetes.io/name: tengri
+  name: tengri-preview
+  namespace: tengri
+spec:
+  ports:
+  - name: http
+    port: 8081
+    protocol: TCP
+    targetPort: preview
+  selector:
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/name: tengri
+---
+apiVersion: v1
+automountServiceAccountToken: true
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: tengri
+  name: tengri
+  namespace: tengri
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-5"
+  name: microvms.runtime.proompteng.ai
+spec:
+  group: runtime.proompteng.ai
+  names:
+    kind: MicroVM
+    plural: microvms
+    shortNames:
+    - mvm
+    singular: microvm
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: ".status.phase"
+      name: Phase
+      type: string
+    - jsonPath: ".status.nodeName"
+      name: Node
+      type: string
+    - jsonPath: ".status.guestReady"
+      name: Guest Ready
+      type: boolean
+    - jsonPath: ".spec.expiresAt"
+      name: Expires
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for MicroVMSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              architecture:
+                enum:
+                - amd64
+                - arm64
+                type: string
+              createdAt:
+                format: date-time
+                type: string
+              desiredState:
+                enum:
+                - Running
+                - Sleeping
+                type: string
+              displayName:
+                maxLength: 64
+                minLength: 1
+                type: string
+              expiresAt:
+                format: date-time
+                type: string
+              idleDeadline:
+                format: date-time
+                type: string
+              image:
+                pattern: "^[^@[:space:]]+@sha256:[a-f0-9]{64}$"
+                type: string
+              ownerHash:
+                pattern: "^[a-f0-9]{64}$"
+                type: string
+              resources:
+                properties:
+                  cpuMillis:
+                    enum:
+                    - 2000
+                    format: uint32
+                    minimum: 0
+                    type: integer
+                  memoryMib:
+                    enum:
+                    - 4096
+                    format: uint32
+                    minimum: 0
+                    type: integer
+                  workspaceGib:
+                    enum:
+                    - 16
+                    format: uint32
+                    minimum: 0
+                    type: integer
+                required:
+                - cpuMillis
+                - memoryMib
+                - workspaceGib
+                type: object
+            required:
+            - architecture
+            - createdAt
+            - desiredState
+            - displayName
+            - expiresAt
+            - idleDeadline
+            - image
+            - ownerHash
+            - resources
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionAt:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionAt
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              failureReason:
+                nullable: true
+                type: string
+              guestReady:
+                default: false
+                type: boolean
+              lastActivityAt:
+                format: date-time
+                nullable: true
+                type: string
+              message:
+                nullable: true
+                type: string
+              nodeName:
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                format: int64
+                type: integer
+              phase:
+                enum:
+                - Pending
+                - Booting
+                - Ready
+                - Sleeping
+                - Failed
+                - Terminating
+                type: string
+              podIp:
+                nullable: true
+                type: string
+              podName:
+                nullable: true
+                type: string
+              pvcName:
+                nullable: true
+                type: string
+              readyAt:
+                format: date-time
+                nullable: true
+                type: string
+            required:
+            - phase
+            type: object
+        required:
+        - spec
+        title: MicroVM
+        type: object
+        x-kubernetes-validations:
+        - message: ownerHash is immutable
+          rule: self.spec.ownerHash == oldSelf.spec.ownerHash
+        - message: the digest-pinned guest image is immutable
+          rule: self.spec.image == oldSelf.spec.image
+        - message: the server-selected architecture is immutable
+          rule: self.spec.architecture == oldSelf.spec.architecture
+        - message: the v1 resource profile is immutable
+          rule: self.spec.resources == oldSelf.spec.resources
+        - message: creation and hard-expiry timestamps are immutable
+          rule: self.spec.createdAt == oldSelf.spec.createdAt && self.spec.expiresAt
+            == oldSelf.spec.expiresAt
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: control-plane
+    app.kubernetes.io/name: tengri
+  name: tengri
+  namespace: tengri
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: control-plane
+      app.kubernetes.io/name: tengri
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: control-plane
+        app.kubernetes.io/name: tengri
+        app.kubernetes.io/part-of: tengri
+    spec:
+      automountServiceAccountToken: true
+      containers:
+      - env:
+        - name: TENGRI_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: TENGRI_GUEST_ARCHITECTURE
+          value: amd64
+        - name: TENGRI_DEFAULT_IMAGE
+          valueFrom:
+            configMapKeyRef:
+              key: NANOAGENT_IMAGE
+              name: tengri-release-5kf5fdkb76
+        - name: TENGRI_PUBLIC_URL
+          value: https://tengri.proompteng.ai
+        - name: TENGRI_PREVIEW_URL_TEMPLATE
+          value: https://tengri-{session}.proompteng.ai
+        - name: TENGRI_DESKTOP_ORIGIN
+          value: https://proompteng.ai
+        - name: TENGRI_PREVIEW_ADDRESS
+          value: 0.0.0.0:8081
+        - name: TENGRI_RUNTIME_SECRET_DIRECTORY
+          value: "/var/run/secrets/tengri-runtime"
+        - name: TENGRI_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        envFrom:
+        - secretRef:
+            name: tengri-runtime
+        image: registry.ide-newton.ts.net/lab/tengri@sha256:fed0617eaaa556a500d3b3d8831f84b1ec822ef47b3e82d36e9323e4e808b1e2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/livez"
+            port: gateway
+          periodSeconds: 15
+          timeoutSeconds: 2
+        name: tengri
+        ports:
+        - containerPort: 50051
+          name: grpc
+          protocol: TCP
+        - containerPort: 8080
+          name: gateway
+          protocol: TCP
+        - containerPort: 8081
+          name: preview
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: "/readyz"
+            port: gateway
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: '1'
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 192Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: "/livez"
+            port: gateway
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: "/var/run/secrets/tengri-runtime"
+          name: runtime-secret
+          readOnly: true
+        - mountPath: "/tmp"
+          name: tmp
+      enableServiceLinks: false
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: tengri
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: runtime-secret
+        secret:
+          secretName: tengri-runtime
+      - emptyDir:
+          sizeLimit: 64Mi
+        name: tmp
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+  name: tengri-runtime
+  namespace: tengri
+spec:
+  encryptedData:
+    TENGRI_INTERNAL_HMAC_SECRET: AgCKfXv+iHZdHXrAxUBqmvrXt/Weh6oDCWCMcSE4wuN1Y7smaeDbTgI1vDT26/5OKL+jF9Yy9herW337pWEzY75RBDA/EIiPz+VlImif/fFQw+2/kv92bIfkIK1fh/IoNZHFFlFV50YNtDDpELojqmJflwmTCF6IO680vsIjV0+TZyvYJA7QChK47ERyl5HQfi2XKJxv0oybW2NFddpdWqJ6qFmZvQBBjAyi8IfFJV5dkmhrKgBtBXbjsdfQFgoQBT5dc/PlqoCD0G3IyK3iaWgpNUU/Lx3P6oGYR0TN3hcTvSAkk+OahGZhzYoRJnUo/SbIWt5RBUC6VyR2Nssl6I+LXJo9Gqa2mJrJMEL39mbGy7oc8H996QporEBgM/YUK6XphWlXzLcoSLxHA0TYgCw1/Wz0vORw+7IoMCuGQ9/08I3ybmp1pk8Jvl/mIQW7V741yq30DRWiyt093siS7gE+IQTY7lujeEcUeQZzBLp1US6YlBFvdX4EgYJu0VhxTknXXMXqWXl8rDD9/XII1G82uoFpEZKW2XyipOQVizEQt1YkHjrJHG7Pbp+3ADWbpD+svCYqGjLDm5ytVG7X+hbHkVxJOH0HQzVsQYp0dAQvCO6+ceX5LNKTafA6JiXKYIHWXC8gSiPUwujlXmQwzCj8QociHfvu4/Ke+9fP6v19tt1kzeIZj4NyQKDN1lJN6K3rwLjcDeIxcd1o0CDvUeK6MP0QfjVYqbOriEFr1gmsHD6Xt57cCc38/y79nDonQT5MydsTqqb3NMQxRZmRUlVG
+    TENGRI_TICKET_SIGNING_SECRET: AgB9IyR0+HDUirgFB3ux7OJlwhKyaeqm9z3BiWG6XmJM5GeUEpYdMUkY5rPbwtGstwg/7m+Mt49rI/CLfRt2zr6L00rqW4rpiQ4rtsVnSdy1xIudmnSG9WyroBXSgYsnvGPXVXBOhabTYW1HqsOef4iIW8apptRiIMlsbPh5Oz1GdNw08yyh2tltmTZETBRjvwdyFAZoPfMoTNgmaiO+oEkxtLA73euJX5h09igAMgddd0XpAnnfYZoSjvaW43HKVfjxXvOfX/oDVGFquwYJMe1gnE/oOBiq8825Q4ZJ5q02z4xGYriEfe1+BwovLm7Y7x/IOTl30ZEAq43q75bxAI1ctIzrjThyz2K2OG7ITYtGoRecaDKfYLLAkJW9T/gtZCePa2pYpl0ypfLoOGQTlDDAH3AeQpOAAPmHexu7/o3+W9yDTX+s0yxdnY8aJosMcRPvkwJPPaGsltjD8N0s+heQtCuX1/X4GC5nTc/WvXa2D9mzqsgPSBgfZ5P5TP1S8tuI6P3O53OCJGRFLOA6Lm3S3dX/v9GnTI2u/sAlPYHX29LFViEb+vwhki8l98JbHahe/KF9MFJG55vi7mHTHrDfmP527bWuFSMc7xxssMIF4UPS6PcF9r/c/4LSjxE2pOGJMtYGsw/wFRHGYCEUVjYDZFpllp/NrjgdPpbi/H/mv47nIB2Ndmf9DPQm9DWJojdUhYkd6+IPiB/Sa9dSq1w+pXBDhe4OKxKQO7/PhVyulKP7d6FZa8D40sqJMhuVs9LHfYef1np2w/SlfObgwAgy
+  template:
+    metadata:
+      name: tengri-runtime
+      namespace: tengri
+    type: Opaque
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  name: tengri-control-plane
+  namespace: tengri
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  - ports:
+    - port: 443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 10.96.0.1/32
+  - ports:
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 100.100.244.141/32
+    - ipBlock:
+        cidr: 100.100.244.142/32
+    - ipBlock:
+        cidr: 100.100.244.190/32
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: microvm
+          app.kubernetes.io/name: nanoagent
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: proompteng
+      podSelector:
+        matchLabels:
+          app: proompteng
+    ports:
+    - port: 50051
+      protocol: TCP
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+    ports:
+    - port: 8080
+      protocol: TCP
+    - port: 8081
+      protocol: TCP
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: observability
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: control-plane
+      app.kubernetes.io/name: tengri
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  name: tengri-default-deny
+  namespace: tengri
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  name: tengri-microvm-guests
+  namespace: tengri
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 0.0.0.0/8
+        - 10.0.0.0/8
+        - 100.64.0.0/10
+        - 127.0.0.0/8
+        - 169.254.0.0/16
+        - 172.16.0.0/12
+        - 192.0.0.0/24
+        - 192.0.2.0/24
+        - 192.88.99.0/24
+        - 192.168.0.0/16
+        - 198.18.0.0/15
+        - 198.51.100.0/24
+        - 203.0.113.0/24
+        - 224.0.0.0/4
+        - 240.0.0.0/4
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: control-plane
+          app.kubernetes.io/name: tengri
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: microvm
+      app.kubernetes.io/name: nanoagent
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tengri
+  namespace: tengri
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: control-plane
+      app.kubernetes.io/name: tengri
+  unhealthyPodEvictionPolicy: AlwaysAllow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tengri
+  namespace: tengri
+rules:
+- apiGroups:
+  - runtime.proompteng.ai
+  resources:
+  - microvms
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - runtime.proompteng.ai
+  resources:
+  - microvms/status
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ''
+  resources:
+  - persistentvolumeclaims
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ''
+  resourceNames:
+  - tengri-auth-nonces
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tengri
+  namespace: tengri
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tengri
+subjects:
+- kind: ServiceAccount
+  name: tengri
+  namespace: tengri
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tengri-gateway
+  namespace: tengri
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`tengri.proompteng.ai`) && (Path(`/v1/terminal/ws`) || Path(`/v1/preview/open`)
+      || Path(`/_tengri/open-preview.js`))
+    middlewares:
+    - name: tengri-rate-limit
+    services:
+    - name: tengri-gateway
+      port: 8080
+    syntax: v3
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tengri-preview
+  namespace: tengri
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: HostRegexp(`^tengri-[a-z0-9]{24}\.proompteng\.ai$`)
+    middlewares:
+    - name: tengri-rate-limit
+    services:
+    - name: tengri-preview
+      port: 8081
+    syntax: v3
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: tengri-rate-limit
+  namespace: tengri
+spec:
+  rateLimit:
+    average: 120
+    burst: 180
+    period: 1m
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
